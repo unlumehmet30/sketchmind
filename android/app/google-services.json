@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "308082095505",
+    "project_id": "sketchmind-543f0",
+    "storage_bucket": "sketchmind-543f0.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:308082095505:android:51b22baf6b6fc111891630",
+        "android_client_info": {
+          "package_name": "com.example.sketchmind"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyBZl3fBSCr6QUAgQo6WJ77rnVvdecd3neY"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
