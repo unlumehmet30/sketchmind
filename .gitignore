@@ -54,4 +54,7 @@ DerivedData/
 *.lock
 .DS_Store
 *.log
+# Firebase configuration
+lib/firebase_options.dart
+
 
