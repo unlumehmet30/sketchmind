@@ -1,13 +1,20 @@
 import 'package:flutter/material.dart';
 import 'package:firebase_core/firebase_core.dart';
-import 'firebase_options.dart'; // flutterfire configure ile oluşan dosya
+import 'firebase_options.dart'; // FlutterFire configure ile oluşan dosya
+import 'presentation/home/home_view_model.dart'; // HomeScreen dosyanın yolu
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
-  await Firebase.initializeApp(
-    options: DefaultFirebaseOptions.currentPlatform,
-  );
-  print('✅ Firebase initialized'); // Başarılıysa konsolda görünür
+
+  try {
+    await Firebase.initializeApp(
+      options: DefaultFirebaseOptions.currentPlatform,
+    );
+    print('✅ Firebase initialized');
+  } catch (e) {
+    print('❌ Firebase initialization failed: $e');
+  }
+
   runApp(const SketchMindApp());
 }
 
@@ -28,20 +35,4 @@ class SketchMindApp extends StatelessWidget {
   }
 }
 
-class HomeScreen extends StatelessWidget {
-  const HomeScreen({super.key});
-
-  @override
-  Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(title: const Text("Ana Sayfa")),
-      body: const Center(
-        child: Text(
-          "Hoş geldin! 🚀 Firebase hazır.",
-          style: TextStyle(fontSize: 20),
-        ),
-      ),
-    );
-  }
-}
 
