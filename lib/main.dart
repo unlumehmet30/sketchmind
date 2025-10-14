@@ -1,12 +1,13 @@
 import 'package:flutter/material.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'firebase_options.dart'; // FlutterFire configure ile oluşan dosya
-import 'presentation/home/home_view_model.dart'; // HomeScreen dosyanın yolu
+import 'router/app_router.dart'; // YENİ: GoRouter yapılandırması
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
 
   try {
+    // Firebase başlatılır
     await Firebase.initializeApp(
       options: DefaultFirebaseOptions.currentPlatform,
     );
@@ -23,16 +24,16 @@ class SketchMindApp extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return MaterialApp(
+    // MaterialApp yerine MaterialApp.router kullanılır
+    return MaterialApp.router( 
       title: 'SketchMind',
       debugShowCheckedModeBanner: false,
       theme: ThemeData(
         useMaterial3: true,
         colorScheme: ColorScheme.fromSeed(seedColor: Colors.blueAccent),
       ),
-      home: const HomeScreen(),
+      // GoRouter yapılandırması atanır
+      routerConfig: router, 
     );
   }
 }
-
-

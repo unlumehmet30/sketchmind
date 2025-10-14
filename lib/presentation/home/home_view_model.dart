@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
-import '../../data/dummy/stories.dart'; // senin Story class ve dummyStories
-import 'story_detail_screen.dart'; // hikaye detay ekranı
+import 'package:go_router/go_router.dart'; // GoRouter eklendi
+import '../../data/dummy/stories.dart'; // Story class ve dummyStories
+import '../../router/app_router.dart'; // Route isimleri ve GoRouter rotaları
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
@@ -15,6 +16,7 @@ class _HomeScreenState extends State<HomeScreen> {
   @override
   void initState() {
     super.initState();
+    // Yüklenme simülasyonu
     Future.delayed(const Duration(milliseconds: 800), () {
       setState(() {
         _isLoading = false;
@@ -25,7 +27,19 @@ class _HomeScreenState extends State<HomeScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text("Hikayeler")),
+      appBar: AppBar(
+        title: const Text("Hikayeler"),
+        actions: [
+          // YENİ BUTON: Prompt Ekranına Geçiş
+          IconButton(
+            icon: const Icon(Icons.add_box_outlined),
+            onPressed: () {
+              // GoRouter ile /create yoluna yönlendirme
+              context.go(AppRoutes.create); 
+            },
+          )
+        ],
+      ),
       body: _isLoading
           ? const Center(child: CircularProgressIndicator())
           : ListView.builder(
@@ -48,11 +62,10 @@ class _HomeScreenState extends State<HomeScreen> {
                           : story.text,
                     ),
                     onTap: () {
-                      Navigator.push(
-                        context,
-                        MaterialPageRoute(
-                          builder: (context) => StoryDetailScreen(story: story),
-                        ),
+                      // Yönlendirme artık GoRouter ile yapılacak
+                      // Parametre olarak hikaye ID'sini gönderiyoruz
+                      context.go(
+                        AppRoutes.storyDetail.replaceFirst(':id', story.id),
                       );
                     },
                       
