@@ -27,6 +27,8 @@ dependencies:
   # 🎨 UI / Görseller
   google_fonts: ^6.2.1
   animations: ^2.0.8
+  dart_openai: ^5.1.0
+  flutter_dotenv: ^6.0.0
 
 dev_dependencies:
   flutter_test:

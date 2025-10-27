@@ -56,5 +56,7 @@ DerivedData/
 *.log
 # Firebase configuration
 lib/firebase_options.dart
+.env
+.env.*
 
 
