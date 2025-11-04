@@ -2,10 +2,13 @@
 
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
-import '../../data/services/openai_story_service.dart'; // Gerçek Servis
+import 'package:lottie/lottie.dart'; 
+import '../../data/services/openai_story_service.dart'; 
+import '../../data/services/connectivity_service.dart'; 
 import '../../router/app_router.dart'; 
 
 final _storyService = OpenAIStoryService(); 
+final _connectivityService = ConnectivityService();
 
 class PromptScreen extends StatefulWidget {
   const PromptScreen({super.key});
@@ -41,6 +44,29 @@ class _PromptScreenState extends State<PromptScreen> {
   Future<void> _createStory() async {
     if (!_isButtonEnabled || _isProcessing) return;
 
+    // Bağlantı Kontrolü
+    final isConnected = await _connectivityService.isConnected();
+    if (!isConnected) {
+      if (mounted) {
+        // HATA 1 DÜZELTİLDİ: Text Expanded ile sarıldı
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Row(
+              children: [
+                SizedBox(width: 30, height: 30, child: Lottie.asset('assets/lottie/error_sad.json', repeat: false)), 
+                const SizedBox(width: 10),
+                const Expanded( 
+                  child: Text('İnternet bağlantısı yok! Lütfen kontrol edin.'),
+                ),
+              ],
+            ),
+            duration: const Duration(seconds: 4),
+          ),
+        );
+      }
+      return;
+    }
+    
     final promptText = _promptController.text.trim();
     
     setState(() {
@@ -48,20 +74,46 @@ class _PromptScreenState extends State<PromptScreen> {
     });
 
     try {
-      // Hikaye üretiliyor, görsel alınıyor ve Firestore'a kaydediliyor!
       final newStory = await _storyService.createStory(promptText);
 
-      // Başarılı: Detay Ekranına yönlendir (Firestore ID kullanılıyor)
       if (mounted && newStory.id.isNotEmpty) {
-         context.go(
+        // HATA 2 DÜZELTİLDİ: Text Expanded ile sarıldı (Başarı)
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Row(
+              children: [
+                SizedBox(width: 30, height: 30, child: Lottie.asset('assets/lottie/success_star.json', repeat: false)), 
+                const SizedBox(width: 10),
+                const Expanded(
+                  child: Text('Hikaye başarıyla oluşturuldu!'),
+                ),
+              ],
+            ),
+            duration: const Duration(seconds: 2),
+          ),
+        );
+        
+        context.go(
           AppRoutes.storyDetail.replaceFirst(':id', newStory.id),
         );
       }
 
     } catch (e) {
       if (mounted) {
+        // HATA 3 DÜZELTİLDİ: Text Expanded ile sarıldı (API Hatası)
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Hata: Hikaye oluşturulamadı. ($e)')),
+          SnackBar(
+            content: Row(
+              children: [
+                SizedBox(width: 30, height: 30, child: Lottie.asset('assets/lottie/error_sad.json', repeat: false)), 
+                const SizedBox(width: 10),
+                const Expanded(
+                  child: Text('Hata oluştu: Hikaye oluşturulamadı. (API Anahtarını/Konsolu kontrol edin)'),
+                ),
+              ],
+            ),
+            duration: const Duration(seconds: 4),
+          ),
         );
       }
       print("Hikaye oluşturulurken hata: $e");
@@ -76,7 +128,6 @@ class _PromptScreenState extends State<PromptScreen> {
 
   @override
   Widget build(BuildContext context) {
-    // ... (UI Kodu aynı kalır, _createStory metodu artık gerçek servisi çağırır)
     return Scaffold(
       appBar: AppBar(
         title: const Text("Hayalini Anlat"),
@@ -86,18 +137,26 @@ class _PromptScreenState extends State<PromptScreen> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            const Text("Hangi konuda bir hikaye hayal ediyorsun?", style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+            const Text(
+              "Hangi konuda bir hikaye hayal ediyorsun?",
+              style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+            ),
             const SizedBox(height: 16),
+            
             TextField(
               controller: _promptController,
               maxLines: 4, 
               decoration: InputDecoration(
                 hintText: "Örn: Uçan bir dinozor ve konuşan bir bulut...",
-                border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+                border: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(12),
+                ),
                 contentPadding: const EdgeInsets.all(16),
               ),
             ),
             const SizedBox(height: 32),
+            
+            // Hikaye Oluşturma Butonu
             ElevatedButton(
               onPressed: (_isButtonEnabled && !_isProcessing) ? _createStory : null,
               style: ElevatedButton.styleFrom(
@@ -105,9 +164,20 @@ class _PromptScreenState extends State<PromptScreen> {
                 backgroundColor: (_isButtonEnabled && !_isProcessing) ? Colors.blueAccent : Colors.grey,
               ),
               child: _isProcessing
-                  ? const SizedBox(width: 24, height: 24, child: CircularProgressIndicator(color: Colors.white, strokeWidth: 3,))
-                  : const Text("AI Yapsın! 🚀", style: TextStyle(fontSize: 18, color: Colors.white)),
+                  ? SizedBox( // Lottie animasyonu
+                      width: 100, 
+                      height: 50, 
+                      child: Lottie.asset(
+                        'assets/lottie/loading_rocket.json', 
+                        repeat: true,
+                      ),
+                    )
+                  : const Text(
+                      "AI Yapsın! 🚀",
+                      style: TextStyle(fontSize: 18, color: Colors.white),
+                    ),
             ),
+            
             const SizedBox(height: 20),
             Center(
               child: Text(
