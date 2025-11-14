@@ -38,8 +38,9 @@ class _LoginRegisterScreenState extends State<LoginRegisterScreen> with SingleTi
 
   void _handleAuth(bool isLogin) async {
     setState(() => _errorMessage = null);
+    
     final username = _usernameController.text.trim();
-    final password = _passwordController.text;
+    final password = _passwordController.text.trim(); // Şifre boşlukları temizlendi
 
     if (username.isEmpty || password.isEmpty) {
       setState(() => _errorMessage = "Kullanıcı adı ve şifre boş bırakılamaz.");
@@ -55,7 +56,6 @@ class _LoginRegisterScreenState extends State<LoginRegisterScreen> with SingleTi
 
     if (success) {
       if (mounted) {
-        // GÜVENLİ ÇÖZÜM: Yönlendirmeyi bir sonraki kareye zorla
         WidgetsBinding.instance.addPostFrameCallback((_) {
             context.go(AppRoutes.home);
         });
@@ -74,7 +74,7 @@ class _LoginRegisterScreenState extends State<LoginRegisterScreen> with SingleTi
     return Scaffold(
       appBar: AppBar(
         title: const Text("Hesap Oluştur / Giriş Yap"),
-        automaticallyImplyLeading: false,
+        automaticallyImplyLeading: true, 
         bottom: TabBar(
           controller: _tabController,
           tabs: const [
@@ -94,14 +94,6 @@ class _LoginRegisterScreenState extends State<LoginRegisterScreen> with SingleTi
   }
 
   Widget _buildAuthForm({required bool isLogin}) {
-    _tabController.addListener(() {
-      if (!_tabController.indexIsChanging) {
-        setState(() {
-          _errorMessage = null;
-        });
-      }
-    });
-
     return Padding(
       padding: const EdgeInsets.all(24.0),
       child: Column(
