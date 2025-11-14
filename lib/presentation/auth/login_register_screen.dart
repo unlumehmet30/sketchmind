@@ -39,8 +39,9 @@ class _LoginRegisterScreenState extends State<LoginRegisterScreen> with SingleTi
   void _handleAuth(bool isLogin) async {
     setState(() => _errorMessage = null);
     
+    // KRİTİK: Kullanıcı adı ve şifreyi temizle (trim)
     final username = _usernameController.text.trim();
-    final password = _passwordController.text.trim(); // Şifre boşlukları temizlendi
+    final password = _passwordController.text.trim(); 
 
     if (username.isEmpty || password.isEmpty) {
       setState(() => _errorMessage = "Kullanıcı adı ve şifre boş bırakılamaz.");
@@ -49,13 +50,15 @@ class _LoginRegisterScreenState extends State<LoginRegisterScreen> with SingleTi
 
     bool success;
     if (isLogin) {
-      success = await _userService.loginUser(username, password);
+      // HATA VEREN ÇAĞRI: Şimdi LocalUserService'te tanımlı
+      success = await _userService.loginUser(username, password); 
     } else {
       success = await _userService.registerUser(username, password);
     }
 
     if (success) {
       if (mounted) {
+        // Güvenli yönlendirme
         WidgetsBinding.instance.addPostFrameCallback((_) {
             context.go(AppRoutes.home);
         });
@@ -94,6 +97,7 @@ class _LoginRegisterScreenState extends State<LoginRegisterScreen> with SingleTi
   }
 
   Widget _buildAuthForm({required bool isLogin}) {
+    // ... (Form Widget'ının geri kalanı aynı) ...
     return Padding(
       padding: const EdgeInsets.all(24.0),
       child: Column(
@@ -149,7 +153,7 @@ class _LoginRegisterScreenState extends State<LoginRegisterScreen> with SingleTi
           Text(
             isLogin ? "Kayıtlı değilsen 'Kayıt Ol' sekmesini kullan." : "Minimum 4 karakterli, sadece harf veya rakam kullanın.",
             textAlign: TextAlign.center,
-            style: TextStyle(color: Colors.grey[600]),
+            style: TextStyle(color: Colors.grey.shade600),
           ),
         ],
       ),
