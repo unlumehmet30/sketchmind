@@ -1,35 +1,29 @@
 // lib/main.dart
 
 import 'package:flutter/material.dart';
+import 'package:shared_preferences/shared_preferences.dart'; 
 import 'package:firebase_core/firebase_core.dart';
-import 'package:flutter_dotenv/flutter_dotenv.dart'; // HAFTA 4
-import 'firebase_options.dart'; // FlutterFire configure ile oluşan dosya
-import 'router/app_router.dart'; // HAFTA 2: GoRouter'ı kullanmak için
-import 'data/services/auth_service.dart'; // HAFTA 6: Yeni Auth Servis
-
-final _authService = AuthService(); // Auth servisini başlat
+import 'package:flutter_dotenv/flutter_dotenv.dart'; 
+import 'firebase_options.dart'; 
+import 'router/app_router.dart'; 
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
 
-  // HAFTA 4: .env dosyasını yükle
-  await dotenv.load(fileName: ".env");
-
+  // 1. Gerekli servislerin ön yüklemesi
   try {
-    await Firebase.initializeApp(
-      options: DefaultFirebaseOptions.currentPlatform,
-    );
-    print('✅ Firebase initialized');
+    // Dotenv ve Firebase başlatma
+    await dotenv.load(fileName: ".env");
+    await Firebase.initializeApp(options: DefaultFirebaseOptions.currentPlatform);
     
-    // HAFTA 6: Uygulama başlamadan önce Anonim Girişi zorunlu kıl
-    final userId = await _authService.getCurrentUserId();
-    print('✅ User signed in anonymously with ID: $userId');
-
+    // KRİTİK: SharedPreferences'ı GoRouter redirect'ten önce başlatıyoruz
+    await SharedPreferences.getInstance(); 
+    print('✅ SharedPreferences initialized');
+    
   } catch (e) {
-    print('❌ Firebase initialization failed or Auth failed: $e');
+    print('❌ Initial service loading failed: $e');
   }
 
-  // GoRouter'ı başlatmak için AppRouter'ı kullanıyoruz.
   runApp(const SketchMindApp());
 }
 
@@ -38,7 +32,7 @@ class SketchMindApp extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    // GoRouter'ı kullanmak için MaterialApp.router kullanıyoruz.
+    // GoRouter kullandığımız için MaterialApp.router kullanılır.
     return MaterialApp.router(
       title: 'SketchMind',
       debugShowCheckedModeBanner: false,
@@ -46,7 +40,7 @@ class SketchMindApp extends StatelessWidget {
         useMaterial3: true,
         colorScheme: ColorScheme.fromSeed(seedColor: Colors.blueAccent),
       ),
-      routerConfig: router, // HAFTA 2: Router yapılandırması
+      routerConfig: router, 
     );
   }
 }
