@@ -7,10 +7,9 @@ import '../../data/dummy/stories.dart';
 import '../../router/app_router.dart';
 import '../../data/services/openai_story_service.dart'; 
 import '../../data/services/local_user_service.dart'; 
-import '../../data/dummy/avatars.dart'; // defaultAvatarUrl için
+import '../../data/dummy/avatars.dart'; 
 
-final _storyService = OpenAIStoryService();
-final _localUserService = LocalUserService(); 
+// ❌ Global servis tanımlamaları kaldırıldı.
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
@@ -20,37 +19,55 @@ class HomeScreen extends StatefulWidget {
 }
 
 class _HomeScreenState extends State<HomeScreen> {
+  // ✅ Servisler artık State sınıfının üyeleridir (Güvenli Yöntem)
+  final _storyService = OpenAIStoryService(); 
+  final _localUserService = LocalUserService(); 
+
   List<Story> _stories = []; 
   bool _isLoading = true;
   String _currentUsername = 'Misafir'; 
   String _lastLoadedUserId = ''; 
   String? _currentAvatarUrl; 
+  bool _isVerified = false; 
 
   @override
   void initState() {
     super.initState();
-    // Yükleme didChangeDependencies'e devredilmiştir.
+    _loadInitialDataAndVerify(); 
   }
 
-  // Sayfa her açıldığında veya geri dönüldüğünde çağrılır
+  Future<void> _loadInitialDataAndVerify() async {
+    await _loadUserData(forceReloadStories: false); 
+
+    if (_currentUsername != LocalUserService.defaultUserId) {
+      await _verifyOnLoad();
+    } else {
+      if (mounted) setState(() { _isVerified = true; _isLoading = false; });
+    }
+    
+    if (_isVerified && _stories.isEmpty) {
+        await _fetchStories();
+    }
+  }
+
   @override
   void didChangeDependencies() {
     super.didChangeDependencies();
-    _checkAndReloadUser();
+    if (_isVerified) {
+        _checkAndReloadUser();
+    }
   }
 
-  // Kullanıcı değişmişse yeniden yükle
   Future<void> _checkAndReloadUser() async {
     final userId = await _localUserService.getSelectedUserId();
     final avatarUrl = await _localUserService.getSelectedUserAvatar(userId);
     
-    // Kullanıcı ID'si VEYA Avatar URL'si değişmişse yeniden yükle
     if (userId != _lastLoadedUserId || avatarUrl != _currentAvatarUrl) {
       await _loadUserData(forceReloadStories: userId != _lastLoadedUserId);
+      if(mounted) setState(() { _isVerified = true; }); 
     }
   }
 
-  // Kullanıcı adını ve avatar URL'sini yükler
   Future<void> _loadUserData({required bool forceReloadStories}) async {
     if (mounted) {
       setState(() {
@@ -106,11 +123,11 @@ class _HomeScreenState extends State<HomeScreen> {
   void _logoutAndRedirect() async {
     await _localUserService.logoutUser();
     if (mounted) {
-      context.go(AppRoutes.auth);
+        _isVerified = false; 
+        context.go(AppRoutes.auth);
     }
   }
   
-  // GÜVENLİĞİ GEÇEN KULLANICI İÇİN PROFİL DEĞİŞTİRME
   void _forceSwitchProfile(String username) async {
     await _localUserService.setSelectedUserId(username);
     
@@ -118,51 +135,63 @@ class _HomeScreenState extends State<HomeScreen> {
       _checkAndReloadUser();
     }
   }
-  
-  // ŞİFRE DOĞRULAMA DİALOGU
-  Future<void> _showPasswordVerificationDialog(String targetUsername) async {
+
+  Future<void> _verifyOnLoad() async {
+    if (mounted) setState(() { _isLoading = true; });
+
+    final bool success = await _showPasswordVerificationDialog(_currentUsername, isOnLoad: true);
+    
+    if (success) {
+        if (mounted) setState(() { _isVerified = true; });
+    } else {
+        _logoutAndRedirect(); 
+    }
+  }
+
+  // GÜVENLİ ŞİFRE DİALOGU
+  Future<bool> _showPasswordVerificationDialog(String targetUsername, {bool isOnLoad = false}) async {
+    // ❌ passwordController.dispose() çağrısını kaldırarak hatayı çözüyoruz.
     final TextEditingController passwordController = TextEditingController();
     
-    final bool? verified = await showDialog<bool>(
+    final bool? dialogResult = await showDialog<bool>(
       context: context,
-      builder: (context) => AlertDialog(
-        title: Text('Giriş: $targetUsername'),
-        content: TextField(
-          controller: passwordController,
-          obscureText: true,
-          decoration: const InputDecoration(labelText: 'Şifre'),
-          onSubmitted: (value) => Navigator.of(context).pop(true),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.of(context).pop(false),
-            child: const Text('İptal'),
+      barrierDismissible: !isOnLoad, 
+      builder: (context) {
+        return PopScope( 
+          canPop: !isOnLoad,
+          child: AlertDialog(
+            title: Text(isOnLoad ? 'Giriş Yap: $targetUsername' : 'Geçiş Yap: $targetUsername'),
+            content: TextField(
+              controller: passwordController,
+              obscureText: true,
+              decoration: const InputDecoration(labelText: 'Şifre'),
+              onSubmitted: (value) => Navigator.of(context).pop(true),
+            ),
+            actions: [
+              if (!isOnLoad)
+              TextButton(
+                onPressed: () => Navigator.of(context).pop(false),
+                child: const Text('İptal'),
+              ),
+              ElevatedButton(
+                onPressed: () => Navigator.of(context).pop(true),
+                child: const Text('Doğrula'),
+              ),
+            ],
           ),
-          ElevatedButton(
-            onPressed: () => Navigator.of(context).pop(true),
-            child: const Text('Doğrula'),
-          ),
-        ],
-      ),
+        );
+      },
     );
 
-    if (verified == true) {
-      final password = passwordController.text.trim(); 
-      
-      final bool loginSuccess = await _localUserService.loginUser(targetUsername, password);
-      
-      if (loginSuccess) {
-        // Başarılı doğrulama sonrası profili değiştir
-        _forceSwitchProfile(targetUsername);
-      } else {
-        if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text('Hata: Şifre yanlış.')),
-          );
-        }
-      }
+    // passwordController.dispose(); // BU SATIR KALDIRILDI
+
+    if (dialogResult == true) {
+        final password = passwordController.text.trim(); 
+        final bool loginSuccess = await _localUserService.loginUser(targetUsername, password);
+        return loginSuccess; 
     }
-    passwordController.dispose();
+
+    return false; 
   }
 
 
@@ -177,7 +206,6 @@ class _HomeScreenState extends State<HomeScreen> {
     final bool isGuest = _currentUsername == 'Misafir';
 
     final List<PopupMenuEntry<String>> menuItems = [
-        // Kullanıcı Listesi: Seçilince şifre dialogunu açar
         ...switchableUsers.map((username) => PopupMenuItem<String>(
           value: username,
           child: Text('Geçiş Yap: $username'),
@@ -185,7 +213,6 @@ class _HomeScreenState extends State<HomeScreen> {
         
         if (switchableUsers.isNotEmpty) const PopupMenuDivider(),
         
-        // Başka Biriyle Giriş Yap (Auth ekranına yönlendirir)
         PopupMenuItem<String>(
           value: 'logout',
           child: Text(isGuest ? 'Giriş Yap / Kayıt Ol' : 'Başka Biriyle Giriş Yap', 
@@ -206,12 +233,24 @@ class _HomeScreenState extends State<HomeScreen> {
       context: context,
       position: position, 
       items: menuItems,
-    ).then((value) {
+    ).then((value) async { 
+      if (!mounted) return; 
+
       if (value == 'logout') {
         _logoutAndRedirect();
       } else if (value is String) {
-        // ✅ DÜZELTME: Şifre doğrulamayı başlat
-        _showPasswordVerificationDialog(value); 
+        final bool success = await _showPasswordVerificationDialog(value); 
+        
+        if (!mounted) return; 
+
+        if (success) {
+            _forceSwitchProfile(value);
+        } else {
+            // HATA MESAJI BURADA GÖSTERİLİR (Güvenli Alan)
+            ScaffoldMessenger.of(context).showSnackBar(
+                const SnackBar(content: Text('Giriş başarısız. Şifre yanlış.')),
+            );
+        }
       }
     });
   }
@@ -219,7 +258,7 @@ class _HomeScreenState extends State<HomeScreen> {
 
   @override
   Widget build(BuildContext context) {
-    if (_isLoading) {
+    if (_isLoading || !_isVerified) {
       return const Scaffold(body: Center(child: CircularProgressIndicator()));
     }
     
