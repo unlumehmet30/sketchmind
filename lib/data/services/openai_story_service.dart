@@ -1,96 +1,71 @@
 // lib/data/services/openai_story_service.dart
 
-import 'dart:convert';
-import 'package:http/http.dart' as http; // HTTP istekleri için
-// dart_openai ve flutter_dotenv artık kullanılmıyor, çünkü API anahtarı Flutter'da değil.
-
+import 'package:flutter_dotenv/flutter_dotenv.dart';
+import 'package:dart_openai/dart_openai.dart'; 
 import '../i_story_service.dart';
 import '../dummy/stories.dart';
-import 'firestore_story_service.dart'; 
-import 'auth_service.dart';
+import 'firestore_story_service.dart';
+import 'auth_service.dart'; 
+import 'local_user_service.dart'; 
 import 'storage_service.dart';
 
-final _firestoreService = FirestoreStoryService();
-final _authService = AuthService();
+final _firestoreService = FirestoreStoryService(); 
+final _authService = AuthService(); 
 final _storageService = StorageService();
-
-// ÖNEMLİ: Bu URL, sizin Firebase Cloud Function'ınızın HTTPS uç noktası olmalıdır.
-// Örneğin: "https://us-central1-sketchmind-project.cloudfunctions.net/generateStory"
-const String _cloudFunctionUrl = "[FIREBASE_CLOUD_FUNCTION_URL_BURAYA_GELECEK]"; 
-
 
 class OpenAIStoryService implements IStoryService {
   OpenAIStoryService() {
-    // API Anahtarını doğrudan yükleyen constructor kodu kaldırılmıştır.
+    final apiKey = dotenv.env['OPENAI_API_KEY'];
+    if (apiKey != null && apiKey.isNotEmpty) {
+      OpenAI.apiKey = apiKey;
+    }
   }
 
   @override
   Future<Story> createStory(String prompt) async {
     final currentUserId = await _authService.getCurrentUserId(); 
 
-    // 1. Cloud Function'a Tek HTTPS İsteği Gönderme
-    final storyData = await _callCloudFunction(prompt);
-
-    // 2. Story nesnesini gelen verilerle oluşturma
+    // TODO: Gerçek GPT, DALL·E, TTS çağrıları burada yapılacak
     var newStory = Story(
       id: "", 
       title: "Yapay Zeka Macerası: ${prompt.substring(0, prompt.length > 15 ? 15 : prompt.length)}...",
-      text: storyData['storyText']!,
-      imageUrl: storyData['imageUrl']!, 
-      audioUrl: storyData['audioUrl']!,
+      text: "Simüle Edilmiş Hikaye Metni", // Placeholder
+      imageUrl: "https://via.placeholder.com/400x300.png?text=Mock+Image", 
+      audioUrl: "", 
       createdAt: DateTime.now(),
-      userId: currentUserId,
+      userId: currentUserId, 
       isPublic: true,
     );
 
-    // 3. Firestore'a Kayıt
-    final firestoreId = await _firestoreService.saveStory(newStory);
-    
+    final firestoreId = await _firestoreService.saveStory(newStory); 
     return newStory.copyWith(id: firestoreId); 
   }
 
-  // Tüm AI işlemlerini (GPT, DALL·E, TTS Mock) tek bir Backend çağrısıyla halleder.
-  Future<Map<String, String>> _callCloudFunction(String prompt) async {
-    if (_cloudFunctionUrl.contains("[FIREBASE_CLOUD_FUNCTION_URL_BURAYA_GELECEK]")) {
-        throw Exception("Cloud Function URL'si ayarlanmadı. Lütfen URL'yi doğru girin.");
+  // Kullanıcı ID'sine göre filtrelenmiş hikayeleri çeker
+  Future<List<Story>> getStoriesForUser(String userId) async {
+    // Firestore'dan tüm public hikayeleri çek
+    final allStories = await _firestoreService.getPublicStories();
+
+    // Misafir kullanıcı ise tüm hikayeleri göster
+    if (userId == LocalUserService.defaultUserId) {
+      return allStories;
     }
     
-    final response = await http.post(
-      Uri.parse(_cloudFunctionUrl),
-      headers: {'Content-Type': 'application/json'},
-      // Prompt verisini Cloud Function'a gönder
-      body: jsonEncode({'prompt': prompt}),
-    );
+    // Giriş yapmış kullanıcı ise sadece kendi hikayelerini göster
+    final filteredStories = allStories
+        .where((story) => story.userId == userId)
+        .toList();
 
-    if (response.statusCode == 200) {
-      final data = jsonDecode(response.body);
-      
-      // Cloud Function'ın doğru formatta veri döndürdüğünden emin olun
-      if (data['storyText'] == null || data['imageUrl'] == null || data['audioUrl'] == null) {
-          throw Exception("Backend'den eksik veri geldi (StoryText, ImageUrl, AudioUrl)");
-      }
-
-      return {
-        'storyText': data['storyText'] as String,
-        'imageUrl': data['imageUrl'] as String,
-        'audioUrl': data['audioUrl'] as String,
-      };
-
-    } else {
-      throw Exception('Backend (Cloud Function) çağrısı başarısız oldu. Durum Kodu: ${response.statusCode}. Yanıt: ${response.body}');
-    }
+    return filteredStories;
   }
-
-  // Diğer tüm eski _generate... metotları (GPT/DALL·E) bu yapıya devredildiği için kaldırılmıştır.
-  // Bu metodun yerine _callCloudFunction geçmiştir.
-
-  @override
-  Future<void> saveStory(Story story) async {
-    throw UnimplementedError('Kayıt createStory içinde yapılıyor.');
-  }
-
+  
   @override
   Future<List<Story>> getPublicStories() async {
-    return _firestoreService.getPublicStories();
+    return await _firestoreService.getPublicStories();
+  }
+  
+  @override
+  Future<void> saveStory(Story story) async {
+    throw UnimplementedError('Kayıt işlemi createStory içinde yapılıyor.');
   }
 }
