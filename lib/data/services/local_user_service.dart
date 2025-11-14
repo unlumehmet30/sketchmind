@@ -5,14 +5,12 @@ import 'dart:convert';
 import 'package:crypto/crypto.dart';
 
 class LocalUserService {
-  // Sabit Anahtarlar ve Varsayılan Değerler
   static const _keySelectedUserId = 'selectedUserId';
   static const _keyUserDatabase = 'userDatabase'; 
-  static const _registeredUsersKey = 'registeredUsernamesList'; // KRİTİK: Kullanıcı Listesi Anahtarı
+  static const _registeredUsersKey = 'registeredUsernamesList'; 
   static const _userAvatarPrefix = 'userAvatar_'; 
-  static const _defaultUserId = 'default_local_profile';
+  static const _defaultUserId = 'misafir_user'; 
 
-  // Helper method for SharedPreferences instance
   Future<SharedPreferences> _getPrefs() async {
     return await SharedPreferences.getInstance();
   }
@@ -22,12 +20,13 @@ class LocalUserService {
     return sha256.convert(bytes).toString();
   }
 
-  // --- Veritabanı Yöneticisi (Şifre Hash'i) ---
+  // --- Veritabanı Yöneticisi ---
   Future<Map<String, String>> _getUserDatabase() async {
     final prefs = await _getPrefs();
     final jsonString = prefs.getString(_keyUserDatabase) ?? '{}';
     try {
-        return Map<String, String>.from(jsonDecode(jsonString));
+        final Map<String, dynamic> decoded = jsonDecode(jsonString);
+        return decoded.map((key, value) => MapEntry(key, value.toString()));
     } catch (_) {
         return {};
     }
@@ -38,6 +37,21 @@ class LocalUserService {
     await prefs.setString(_keyUserDatabase, jsonEncode(db));
   }
   
+  // --- KRİTİK KONTROL METOTLARI ---
+
+  // Kayıtlı tüm kullanıcı adlarını döndürür
+  Future<List<String>> getAllRegisteredUsernames() async {
+    final prefs = await _getPrefs();
+    final List<String> usernames = prefs.getStringList(_registeredUsersKey) ?? [];
+    return usernames.where((name) => name != _defaultUserId).toList();
+  }
+  
+  // EKLENDİ: Hiç kayıtlı kullanıcı var mı kontrol eder (Hata çözen metot)
+  Future<bool> anyUserRegistered() async {
+    final users = await getAllRegisteredUsernames();
+    return users.isNotEmpty;
+  }
+  
   // --- KAYIT VE GİRİŞ İŞLEMLERİ ---
 
   Future<bool> registerUser(String username, String password) async {
@@ -46,17 +60,14 @@ class LocalUserService {
       return false; 
     }
     
-    // Şifre ve veritabanı kaydı
     db[username] = _hashPassword(password);
     await _saveUserDatabase(db);
     
-    // KRİTİK DÜZELTME: Kullanıcı adını listeye ekle
     final prefs = await _getPrefs();
     List<String> registeredUsers = prefs.getStringList(_registeredUsersKey) ?? [];
     
     if (!registeredUsers.contains(username)) {
       registeredUsers.add(username);
-      // setStringList ile listeyi kaydet
       await prefs.setStringList(_registeredUsersKey, registeredUsers);
     }
     
@@ -69,20 +80,12 @@ class LocalUserService {
     final hashedPassword = _hashPassword(password);
     
     if (db[username] == hashedPassword) {
-      await setSelectedUserId(username);
       return true;
     }
     return false;
   }
 
-  // HATA ÇÖZÜMÜ: Kayıtlı tüm kullanıcı adlarını döndüren metot
-  Future<List<String>> getAllRegisteredUsernames() async {
-    final prefs = await _getPrefs();
-    // setStringList ile kaydedilen listeyi geri döndürür.
-    return prefs.getStringList(_registeredUsersKey) ?? [];
-  }
-  
-  // --- OTURUM YÖNETİMİ ---
+  // --- OTURUM VE AVATAR YÖNETİMİ ---
 
   Future<String> getSelectedUserId() async {
     final prefs = await _getPrefs();
@@ -99,8 +102,6 @@ class LocalUserService {
     await prefs.remove(_keySelectedUserId);
   }
 
-  // --- AVATAR YÖNETİMİ ---
-
   Future<void> setSelectedUserAvatar(String userId, String avatarUrl) async {
     if (userId.isEmpty || userId == _defaultUserId || avatarUrl.isEmpty) return;
     
@@ -110,7 +111,7 @@ class LocalUserService {
   }
 
   Future<String?> getSelectedUserAvatar(String userId) async {
-    if (userId.isEmpty || userId == _defaultUserId) return null;
+    if (userId == _defaultUserId) return null;
     
     final prefs = await _getPrefs();
     final key = '$_userAvatarPrefix$userId';
