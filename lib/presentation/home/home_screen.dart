@@ -9,8 +9,6 @@ import '../../data/services/openai_story_service.dart';
 import '../../data/services/local_user_service.dart'; 
 import '../../data/dummy/avatars.dart'; 
 
-// ❌ Global servis tanımlamaları kaldırıldı.
-
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
 
@@ -19,8 +17,7 @@ class HomeScreen extends StatefulWidget {
 }
 
 class _HomeScreenState extends State<HomeScreen> {
-  // ✅ Servisler artık State sınıfının üyeleridir (Güvenli Yöntem)
-  final _storyService = OpenAIStoryService(); 
+  late final OpenAIStoryService _storyService; // artık initState'te oluşturulacak
   final _localUserService = LocalUserService(); 
 
   List<Story> _stories = []; 
@@ -33,6 +30,10 @@ class _HomeScreenState extends State<HomeScreen> {
   @override
   void initState() {
     super.initState();
+
+    // ✅ .env yüklendikten sonra servis güvenle oluşturulur
+    _storyService = OpenAIStoryService();
+
     _loadInitialDataAndVerify(); 
   }
 
@@ -70,9 +71,7 @@ class _HomeScreenState extends State<HomeScreen> {
 
   Future<void> _loadUserData({required bool forceReloadStories}) async {
     if (mounted) {
-      setState(() {
-        _isLoading = true;
-      });
+      setState(() { _isLoading = true; });
     }
 
     final userId = await _localUserService.getSelectedUserId();
@@ -110,9 +109,7 @@ class _HomeScreenState extends State<HomeScreen> {
     } catch (e) {
       print("Hikayeler çekilemedi: $e");
       if (mounted) {
-        setState(() {
-          _isLoading = false;
-        });
+        setState(() { _isLoading = false; });
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(content: Text('Hikayeler yüklenirken bir sorun oluştu.')),
         );
@@ -130,10 +127,7 @@ class _HomeScreenState extends State<HomeScreen> {
   
   void _forceSwitchProfile(String username) async {
     await _localUserService.setSelectedUserId(username);
-    
-    if (mounted) {
-      _checkAndReloadUser();
-    }
+    if (mounted) _checkAndReloadUser();
   }
 
   Future<void> _verifyOnLoad() async {
@@ -148,9 +142,7 @@ class _HomeScreenState extends State<HomeScreen> {
     }
   }
 
-  // GÜVENLİ ŞİFRE DİALOGU
   Future<bool> _showPasswordVerificationDialog(String targetUsername, {bool isOnLoad = false}) async {
-    // ❌ passwordController.dispose() çağrısını kaldırarak hatayı çözüyoruz.
     final TextEditingController passwordController = TextEditingController();
     
     final bool? dialogResult = await showDialog<bool>(
@@ -183,8 +175,6 @@ class _HomeScreenState extends State<HomeScreen> {
       },
     );
 
-    // passwordController.dispose(); // BU SATIR KALDIRILDI
-
     if (dialogResult == true) {
         final password = passwordController.text.trim(); 
         final bool loginSuccess = await _localUserService.loginUser(targetUsername, password);
@@ -194,14 +184,10 @@ class _HomeScreenState extends State<HomeScreen> {
     return false; 
   }
 
-
-  // Profil değiştirme menüsünü gösterir (UZUN BASIŞ İŞLEVİ)
   Future<void> _showProfileOptions(BuildContext context) async {
     final allUsernames = await _localUserService.getAllRegisteredUsernames();
 
-    final switchableUsers = allUsernames
-        .where((name) => name != _currentUsername)
-        .toList();
+    final switchableUsers = allUsernames.where((name) => name != _currentUsername).toList();
     
     final bool isGuest = _currentUsername == 'Misafir';
 
@@ -209,10 +195,8 @@ class _HomeScreenState extends State<HomeScreen> {
         ...switchableUsers.map((username) => PopupMenuItem<String>(
           value: username,
           child: Text('Geçiş Yap: $username'),
-        )).toList(),
-        
+        )),
         if (switchableUsers.isNotEmpty) const PopupMenuDivider(),
-        
         PopupMenuItem<String>(
           value: 'logout',
           child: Text(isGuest ? 'Giriş Yap / Kayıt Ol' : 'Başka Biriyle Giriş Yap', 
@@ -240,21 +224,14 @@ class _HomeScreenState extends State<HomeScreen> {
         _logoutAndRedirect();
       } else if (value is String) {
         final bool success = await _showPasswordVerificationDialog(value); 
-        
         if (!mounted) return; 
-
-        if (success) {
-            _forceSwitchProfile(value);
-        } else {
-            // HATA MESAJI BURADA GÖSTERİLİR (Güvenli Alan)
-            ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(content: Text('Giriş başarısız. Şifre yanlış.')),
-            );
-        }
+        if (success) _forceSwitchProfile(value);
+        else ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('Giriş başarısız. Şifre yanlış.')),
+        );
       }
     });
   }
-
 
   @override
   Widget build(BuildContext context) {
@@ -262,9 +239,7 @@ class _HomeScreenState extends State<HomeScreen> {
       return const Scaffold(body: Center(child: CircularProgressIndicator()));
     }
     
-    final String initialLetter = _currentUsername.isNotEmpty 
-        ? _currentUsername[0].toUpperCase() 
-        : 'M';
+    final String initialLetter = _currentUsername.isNotEmpty ? _currentUsername[0].toUpperCase() : 'M';
     
     final Widget profileAvatarWidget = CircleAvatar(
         radius: 18,
@@ -273,19 +248,14 @@ class _HomeScreenState extends State<HomeScreen> {
             ? CachedNetworkImageProvider(_currentAvatarUrl!) as ImageProvider
             : null,
         child: _currentAvatarUrl == null || _currentUsername == 'Misafir'
-            ? Text(
-                initialLetter,
-                style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Colors.blue),
-              )
+            ? Text(initialLetter, style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Colors.blue))
             : null,
     );
 
     return Scaffold(
       appBar: AppBar(
         title: InkWell(
-          onTap: () async {
-            await context.push(AppRoutes.profile);
-          },
+          onTap: () async { await context.push(AppRoutes.profile); },
           onLongPress: () => _showProfileOptions(context), 
           child: Row(
             mainAxisSize: MainAxisSize.min,
@@ -298,20 +268,8 @@ class _HomeScreenState extends State<HomeScreen> {
         ), 
         automaticallyImplyLeading: false, 
         actions: [
-          IconButton(
-            icon: const Icon(Icons.add_box_outlined),
-            onPressed: () => context.push(AppRoutes.create),
-          ),
-          IconButton( 
-            icon: const Icon(Icons.refresh),
-            onPressed: () {
-              setState(() {
-                _stories = [];
-                _isLoading = true;
-              });
-              _fetchStories(); 
-            },
-          ),
+          IconButton(icon: const Icon(Icons.add_box_outlined), onPressed: () => context.push(AppRoutes.create)),
+          IconButton(icon: const Icon(Icons.refresh), onPressed: () { setState(() { _stories = []; _isLoading = true; }); _fetchStories(); }),
           const SizedBox(width: 8), 
         ]
       ),
@@ -336,36 +294,13 @@ class _HomeScreenState extends State<HomeScreen> {
                          width: 50,
                          height: 50,
                          fit: BoxFit.cover,
-                         placeholder: (context, url) => Container(
-                           width: 50, 
-                           height: 50, 
-                           color: Colors.grey[200],
-                           child: const Center(
-                             child: CircularProgressIndicator(strokeWidth: 2),
-                           ),
-                         ),
-                         errorWidget: (context, url, error) => Container(
-                           width: 50,
-                           height: 50,
-                           color: Colors.grey[300],
-                           child: const Icon(Icons.image_not_supported, size: 30),
-                         ),
+                         placeholder: (context, url) => Container(width: 50, height: 50, color: Colors.grey[200], child: const Center(child: CircularProgressIndicator(strokeWidth: 2))),
+                         errorWidget: (context, url, error) => Container(width: 50, height: 50, color: Colors.grey[300], child: const Icon(Icons.image_not_supported, size: 30)),
                        ),
-                       title: Text(
-                         story.title,
-                         style: const TextStyle(fontWeight: FontWeight.bold),
-                       ),
-                       subtitle: Text(
-                         story.text.length > 50
-                             ? '${story.text.substring(0, 50)}...'
-                             : story.text,
-                       ),
+                       title: Text(story.title, style: const TextStyle(fontWeight: FontWeight.bold)),
+                       subtitle: Text(story.text.length > 50 ? '${story.text.substring(0, 50)}...' : story.text),
                        trailing: const Icon(Icons.arrow_forward_ios, size: 16),
-                       onTap: () {
-                         context.push(
-                           AppRoutes.storyDetail.replaceFirst(':id', story.id),
-                         );
-                       },
+                       onTap: () { context.push(AppRoutes.storyDetail.replaceFirst(':id', story.id)); },
                      ),
                    );
                  },

@@ -1,13 +1,25 @@
 // lib/main.dart
 
 import 'package:flutter/material.dart';
+import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:firebase_core/firebase_core.dart';
-import 'firebase_options.dart'; 
-import 'router/app_router.dart'; // YENİ IMPORT
+import 'firebase_options.dart';
+import 'router/app_router.dart';
 
-void main() async {
+Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
-  
+
+  // 1) .env'i önce yükle — uygulama başında erişilecek tüm env değişkenleri için gerekli
+  try {
+    await dotenv.load(fileName: ".env");
+    print('✅ .env loaded');
+  } catch (e) {
+    print('❌ .env load failed: $e');
+    // İsterseniz burada uygulamayı durdurabilirsiniz:
+    // return;
+  }
+
+  // 2) Firebase'i başlat
   try {
     await Firebase.initializeApp(
       options: DefaultFirebaseOptions.currentPlatform,
@@ -25,15 +37,14 @@ class SketchMindApp extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    // GoRouter'ı kullanmak için MaterialApp.router kullanılır
-    return MaterialApp.router( 
+    return MaterialApp.router(
       title: 'SketchMind',
       debugShowCheckedModeBanner: false,
       theme: ThemeData(
         useMaterial3: true,
         colorScheme: ColorScheme.fromSeed(seedColor: Colors.blueAccent),
       ),
-      routerConfig: router, // app_router.dart dosyasındaki router nesnesini kullan
+      routerConfig: router,
     );
   }
 }
