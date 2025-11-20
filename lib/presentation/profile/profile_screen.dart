@@ -5,7 +5,7 @@ import 'package:go_router/go_router.dart';
 import 'package:cached_network_image/cached_network_image.dart'; 
 import '../../data/services/local_user_service.dart';
 import '../../router/app_router.dart';
-import '../../data/dummy/avatars.dart'; // AvatarCategory ve dummy veriler
+import '../../data/dummy/avatars.dart'; 
 
 class ProfileScreen extends StatefulWidget {
   const ProfileScreen({super.key});
@@ -18,7 +18,13 @@ class _ProfileScreenState extends State<ProfileScreen> {
   String _currentUsername = 'Misafir';
   String? _currentAvatarUrl;
   final _localUserService = LocalUserService();
-  bool _isLoading = true; // Yükleme durumu eklendi
+  
+  bool _isParentMode = false;
+  bool _isLoading = true;
+
+  // Renk tanımlamaları (Kullanıcının isteği: Pastel Mor/Pembe karışımı ve Yeşil)
+  static const Color _childModeColor = Color(0xFFC3A1E6); // Pastel Mor
+  static const Color _parentModeColor = Color(0xFF4CAF50); // Yeşil
 
   @override
   void initState() {
@@ -31,223 +37,267 @@ class _ProfileScreenState extends State<ProfileScreen> {
     final avatarUrl = userId != LocalUserService.defaultUserId 
         ? await _localUserService.getSelectedUserAvatar(userId) 
         : defaultAvatarUrl; 
-        
-    setState(() {
-      _currentUsername = userId == LocalUserService.defaultUserId ? 'Misafir' : userId;
-      _currentAvatarUrl = avatarUrl;
-      _isLoading = false; // Yükleme bitti
-    });
+    final parentMode = await _localUserService.getIsParentMode();
+
+    if(mounted) {
+      setState(() {
+        _currentUsername = userId == LocalUserService.defaultUserId ? 'Misafir' : userId;
+        _currentAvatarUrl = avatarUrl;
+        _isParentMode = parentMode;
+        _isLoading = false;
+      });
+    }
   }
   
   void _logoutAndRedirect() async {
-    // Onay dialogu burada yer alabilir...
     await _localUserService.logoutUser();
-    if (mounted) {
-      context.go(AppRoutes.auth);
-    }
+    if (mounted) context.go(AppRoutes.auth);
   }
 
-  // Avatar seçim menüsünü gösterir
-  Future<void> _showAvatarSelectionMenu() async {
-    if (_currentUsername == LocalUserService.defaultUserId) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Misafir kullanıcılar avatar değiştiremez.')),
-      );
-      return;
+  // Ebeveyn Modunu Değiştirme (Şifre Sorar)
+  void _toggleParentMode(bool requestedValue) async {
+    // 1. Misafir kullanıcı ise engelle
+    if (_currentUsername == 'Misafir') {
+        if(mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Giriş yapmadan ayarları değiştiremezsiniz.')));
+        return;
     }
+    
+    // 2. Şifre Doğrulama Dialogunu aç
+    final success = await _showPasswordDialog();
+    
+    if (success == true) {
+      // 3. BAŞARILI: Veri kaydet ve UI güncelle
+      await _localUserService.setIsParentMode(requestedValue);
+      if(mounted) {
+        setState(() => _isParentMode = requestedValue);
+        // Home ekranını güncellemek için yönlendirme yap
+        context.go(AppRoutes.home);
+      }
+    } 
+    // 4. BAŞARISIZ: Hiçbir şey yapma. _isParentMode zaten eski değerinde kaldı.
+  }
 
-    final selectedAvatarUrl = await showModalBottomSheet<String>(
+  // GÜVENİLİR ŞİFRE DOĞRULAMA DİYALOĞU
+  Future<bool> _showPasswordDialog() async {
+    final controller = TextEditingController();
+    
+    final bool? result = await showDialog<bool>(
       context: context,
-      isScrollControlled: true,
-      builder: (BuildContext context) {
-        return DraggableScrollableSheet(
-          expand: false,
-          initialChildSize: 0.8,
-          minChildSize: 0.5,
-          maxChildSize: 0.9,
-          builder: (context, scrollController) {
-            return SingleChildScrollView(
-              controller: scrollController,
-              child: Padding(
-                padding: const EdgeInsets.all(16.0),
+      builder: (dialogContext) {
+        return StatefulBuilder(
+          builder: (context, setDialogState) {
+            String error = '';
+            
+            void verify() async {
+              if (!dialogContext.mounted) return;
+              
+              // Şifre kontrolü
+              final success = await _localUserService.loginUser(_currentUsername, controller.text.trim());
+              
+              if (!dialogContext.mounted) return;
+
+              if (success) {
+                Navigator.pop(dialogContext, true); // Başarılı, true döndür
+              } else {
+                setDialogState(() => error = 'Yanlış şifre'); // Hata mesajını dialog içinde göster
+              }
+            }
+            
+            return AlertDialog(
+              title: const Text('Ebeveyn Doğrulaması'),
+              content: SingleChildScrollView(
                 child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
+                  mainAxisSize: MainAxisSize.min,
                   children: [
-                    const Center(
-                      child: Text("Avatar Seç", style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold)),
+                    Text("Modu değiştirmek için şifrenizi girin: (${_currentUsername})"),
+                    TextField(
+                        controller: controller, 
+                        obscureText: true, 
+                        decoration: InputDecoration(labelText: 'Şifre', errorText: error.isEmpty ? null : error),
+                        onSubmitted: (_) => verify(), 
                     ),
-                    const SizedBox(height: 20),
-                    
-                    // Kategoriye Göre Avatar Listesi
-                    ...predefinedAvatars.map((category) {
-                      return Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Padding(
-                            padding: const EdgeInsets.symmetric(vertical: 10.0),
-                            child: Text(category.name, style: TextStyle(fontSize: 18, fontWeight: FontWeight.w600)),
-                          ),
-                          GridView.builder(
-                            shrinkWrap: true,
-                            physics: const NeverScrollableScrollPhysics(),
-                            gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-                              crossAxisCount: 4, 
-                              crossAxisSpacing: 10,
-                              mainAxisSpacing: 10,
-                            ),
-                            itemCount: category.imageUrls.length,
-                            itemBuilder: (context, index) {
-                              final url = category.imageUrls[index];
-                              final isSelected = _currentAvatarUrl == url;
-                              return GestureDetector(
-                                onTap: () => Navigator.pop(context, url),
-                                child: Container(
-                                  decoration: BoxDecoration(
-                                    border: isSelected ? Border.all(color: Colors.blueAccent, width: 3) : null,
-                                    borderRadius: BorderRadius.circular(50),
-                                  ),
-                                  child: CircleAvatar(
-                                    radius: 30,
-                                    backgroundColor: Colors.grey.shade100,
-                                    backgroundImage: CachedNetworkImageProvider(url),
-                                  ),
-                                ),
-                              );
-                            },
-                          ),
-                          const SizedBox(height: 20),
-                        ],
-                      );
-                    }).toList(),
                   ],
                 ),
               ),
+              actions: [
+                  TextButton(onPressed: () => Navigator.pop(dialogContext, false), child: const Text('İptal')),
+                  ElevatedButton(
+                      onPressed: verify, 
+                      child: const Text('Doğrula')
+                  ),
+              ],
             );
-          },
+          }
         );
       },
     );
-
-    // KONTROL: Eğer bir avatar URL'si seçildiyse
-    if (selectedAvatarUrl != null && mounted) {
-      await _localUserService.setSelectedUserAvatar(_currentUsername, selectedAvatarUrl);
-      
-      // Avatar URL'sini yerel state'te güncelle
-      setState(() {
-        _currentAvatarUrl = selectedAvatarUrl;
-      });
-      
-      // Ana Sayfaya yönlendir (HomeScreen'deki didChangeDependencies'i tetikler)
-      context.go(AppRoutes.home); 
+    return result ?? false;
+  }
+  
+  Future<void> _showAvatarSelectionMenu() async {
+    if (_currentUsername == 'Misafir') return; 
+    
+    // Rastgele avatar URL'si (örnek)
+    final selectedUrl = 'https://picsum.photos/id/${(DateTime.now().millisecond % 100).toString()}/100/100'; 
+    
+    await _localUserService.setSelectedUserAvatar(_currentUsername, selectedUrl);
+    if(mounted) {
+        setState(() {
+            _currentAvatarUrl = selectedUrl;
+        });
+        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Avatar güncellendi!')));
     }
   }
 
-
   @override
   Widget build(BuildContext context) {
-    if (_isLoading) {
-      return const Scaffold(body: Center(child: CircularProgressIndicator()));
-    }
+    if (_isLoading) return const Scaffold(body: Center(child: CircularProgressIndicator()));
 
-    // ... (Avatar ve Misafir kontrolleri) ...
-    
-    final String initialLetter = _currentUsername.isNotEmpty 
-        ? _currentUsername[0].toUpperCase() 
-        : 'M';
-        
     final bool isGuest = _currentUsername == 'Misafir';
+    final String initialLetter = _currentUsername.isNotEmpty ? _currentUsername[0].toUpperCase() : 'M';
+
+    final Color toggleBgColor = _isParentMode ? _parentModeColor : _childModeColor;
+
+    final Widget avatarWidget = CircleAvatar(
+        radius: 60,
+        backgroundColor: Colors.blueAccent,
+        backgroundImage: _currentAvatarUrl != null && !isGuest
+            ? CachedNetworkImageProvider(_currentAvatarUrl!) as ImageProvider
+            : null,
+        child: _currentAvatarUrl == null || isGuest
+            ? Text(initialLetter, style: const TextStyle(fontSize: 50, fontWeight: FontWeight.bold, color: Colors.white)) 
+            : null,
+    );
 
     return Scaffold(
-      appBar: AppBar(
-        title: const Text("Profilim"),
-        centerTitle: true,
-      ),
-      body: Center(
+      appBar: AppBar(title: const Text("Profilim")),
+      body: SingleChildScrollView(
         child: Padding(
-          padding: const EdgeInsets.all(24.0),
+          padding: const EdgeInsets.symmetric(horizontal: 24.0),
           child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
             children: [
-              // --- PROFİL AVATARI VE DEĞİŞTİRME ROZETİ ---
-              Stack(
-                clipBehavior: Clip.none,
-                children: [
-                  CircleAvatar(
-                    radius: 60,
-                    backgroundColor: Colors.blueAccent,
-                    backgroundImage: _currentAvatarUrl != null && !isGuest
-                        ? CachedNetworkImageProvider(_currentAvatarUrl!) as ImageProvider
-                        : null,
-                    child: _currentAvatarUrl == null || isGuest
-                        ? Text(
-                            initialLetter,
-                            style: const TextStyle(fontSize: 50, fontWeight: FontWeight.bold, color: Colors.white),
-                          )
-                        : null,
-                  ),
-                  
-                  // Değiştirme Rozeti
-                  if (!isGuest)
-                    Positioned(
-                      right: -5,
-                      bottom: -5,
-                      child: Material(
-                        color: Colors.transparent,
-                        child: InkWell(
-                          onTap: _showAvatarSelectionMenu, // Avatar seçim menüsünü aç
-                          borderRadius: BorderRadius.circular(20),
+              const SizedBox(height: 30),
+              
+              // --- EBEVEYN MODU TOGGLE (Yuvarlak, Üst Ortada) ---
+              if (!isGuest)
+              Center(
+                child: GestureDetector(
+                  onTap: () => _toggleParentMode(!_isParentMode),
+                  child: AnimatedContainer(
+                    duration: const Duration(milliseconds: 300),
+                    width: 150,
+                    height: 50,
+                    decoration: BoxDecoration(
+                      color: toggleBgColor.withOpacity(0.9), // Hafif pastel görünüm
+                      borderRadius: BorderRadius.circular(25),
+                      border: Border.all(color: toggleBgColor, width: 2)
+                    ),
+                    padding: const EdgeInsets.all(4),
+                    child: Stack(
+                      children: [
+                        // Arka plan simgeleri (soluk)
+                        Align(
+                          alignment: Alignment.centerLeft,
+                          child: Icon(Icons.child_care, color: Colors.white54, size: 30),
+                        ),
+                        Align(
+                          alignment: Alignment.centerRight,
+                          child: Icon(Icons.supervisor_account, color: Colors.white54, size: 30),
+                        ),
+                        // HAREKET EDEN YUVALAK GÖSTERGE (Mevcut Modun İkonu)
+                        AnimatedAlign(
+                          duration: const Duration(milliseconds: 300),
+                          alignment: _isParentMode ? Alignment.centerRight : Alignment.centerLeft,
                           child: Container(
-                            padding: const EdgeInsets.all(8),
+                            width: 42,
+                            height: 42,
                             decoration: BoxDecoration(
-                              color: Colors.purple,
+                              color: Colors.white,
                               shape: BoxShape.circle,
-                              border: Border.all(color: Colors.white, width: 2),
+                              boxShadow: [BoxShadow(color: Colors.black38, blurRadius: 4, offset: Offset(0, 2))],
                             ),
-                            child: const Icon(Icons.camera_alt, color: Colors.white, size: 24),
+                            child: Icon(
+                              _isParentMode ? Icons.lock_open : Icons.lock, 
+                              color: _isParentMode ? _parentModeColor : _childModeColor
+                            ),
                           ),
                         ),
-                      ),
+                      ],
                     ),
-                ],
-              ),
-              
-              const SizedBox(height: 24),
-              
-              Text(
-                _currentUsername,
-                style: const TextStyle(fontSize: 28, fontWeight: FontWeight.bold),
-              ),
-              
-              const SizedBox(height: 40),
-              
-              // --- ÇIKIŞ YAP BUTONU ---
-              Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 16.0),
-                child: ElevatedButton.icon(
-                  onPressed: _logoutAndRedirect,
-                  icon: Icon(isGuest ? Icons.login : Icons.logout),
-                  label: Text(isGuest ? 'Giriş Yap / Kayıt Ol' : 'Oturumu Kapat'),
-                  style: ElevatedButton.styleFrom(
-                    minimumSize: const Size(double.infinity, 50),
-                    backgroundColor: isGuest ? Colors.green : Colors.red,
-                    foregroundColor: Colors.white,
                   ),
                 ),
               ),
+              const SizedBox(height: 30),
               
-              const SizedBox(height: 16),
-              
-              // Yeni Profil Oluşturma Butonu
-              Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 16.0),
-                child: OutlinedButton.icon(
-                  onPressed: () => context.push(AppRoutes.auth),
-                  icon: const Icon(Icons.person_add),
-                  label: const Text('Yeni Profil Oluştur'),
-                  style: OutlinedButton.styleFrom(
-                    minimumSize: const Size(double.infinity, 50),
-                    foregroundColor: Colors.blueAccent,
-                  ),
+              // --- PROFİL AVATARI ---
+              Center(
+                child: Column(
+                  children: [
+                    Stack(
+                      alignment: Alignment.center,
+                      children: [
+                        avatarWidget,
+                        // Avatar Değiştirme Butonu
+                        if (!isGuest)
+                          Positioned(
+                            right: 0,
+                            bottom: 0,
+                            child: Material(
+                              color: Colors.transparent,
+                              child: InkWell(
+                                onTap: _showAvatarSelectionMenu,
+                                borderRadius: BorderRadius.circular(20),
+                                child: Container(
+                                  padding: const EdgeInsets.all(8),
+                                  decoration: BoxDecoration(
+                                    color: Colors.purple,
+                                    shape: BoxShape.circle,
+                                    border: Border.all(color: Colors.white, width: 2),
+                                  ),
+                                  child: const Icon(Icons.camera_alt, color: Colors.white, size: 24),
+                                ),
+                              ),
+                            ),
+                          ),
+                      ],
+                    ),
+                    
+                    const SizedBox(height: 20),
+                    Text(_currentUsername, style: const TextStyle(fontSize: 28, fontWeight: FontWeight.bold)),
+                    Text(isGuest ? 'Lütfen giriş yapın.' : 'Aktif profiliniz.', style: TextStyle(fontSize: 16, color: Colors.grey.shade600)),
+                    
+                    const SizedBox(height: 50),
+
+                    // --- ALT BUTONLAR ---
+                    SizedBox(
+                      width: double.infinity,
+                      child: ElevatedButton.icon(
+                        onPressed: _logoutAndRedirect,
+                        icon: Icon(isGuest ? Icons.login : Icons.logout),
+                        label: Text(isGuest ? 'Giriş Yap / Kayıt Ol' : 'Oturumu Kapat'),
+                        style: ElevatedButton.styleFrom(
+                          minimumSize: const Size(double.infinity, 50),
+                          backgroundColor: isGuest ? Colors.green : Colors.red,
+                          foregroundColor: Colors.white,
+                        ),
+                      ),
+                    ),
+                    const SizedBox(height: 16),
+                    
+                    SizedBox(
+                      width: double.infinity,
+                      child: OutlinedButton.icon(
+                        onPressed: () => context.go(AppRoutes.auth),
+                        icon: const Icon(Icons.person_add),
+                        label: const Text('Yeni Profil Oluştur'),
+                        style: OutlinedButton.styleFrom(
+                          minimumSize: const Size(double.infinity, 50),
+                          foregroundColor: Colors.blueAccent,
+                        ),
+                      ),
+                    ),
+                    const SizedBox(height: 30),
+                  ],
                 ),
               ),
             ],

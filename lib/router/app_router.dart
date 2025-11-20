@@ -34,33 +34,36 @@ final GoRouter router = GoRouter(
     final bool anyUserExists = await _localUserServiceInstance.anyUserRegistered(); // Kayıt var mı?
     final selectedId = await _localUserServiceInstance.getSelectedUserId();
     
-    // Geçici olarak Home ekranını açıyorsa ve henüz bir profil seçiliyse
-    final bool isUserSelected = selectedId != LocalUserService.defaultUserId; 
+    final bool isUserSelected = selectedId != LocalUserService.defaultUserId; // Bir kullanıcı seçili mi?
     
     final bool isAuthPath = state.uri.path == AppRoutes.auth;
     final bool isProfileSelectPath = state.uri.path == AppRoutes.profileSelection;
 
-    // 1. Durum: Hiç Kayıt Yok (Yeni kullanıcı)
+    // --- Durum 1: Hiç Kayıt Yok (Yeni Kurulum) ---
     if (!anyUserExists) {
-        // Auth ekranına yönlendir (kayıt ol)
+        // Eğer Auth ekranında değilse, oraya yönlendir. Auth'ta ise kalmasına izin ver (return null).
         return isAuthPath ? null : AppRoutes.auth;
     }
 
-    // 2. Durum: Kayıtlı Kullanıcı Var (Her oturumda doğrulanmalı)
-    // Home'a veya başka bir yere gitmek istiyorsa VEYA heniz geçerli bir kullanıcı seçilmemişse
-    if (!isProfileSelectPath && !isUserSelected) {
-        // Profil Seçim ekranına yönlendir
-        return AppRoutes.profileSelection;
+    // --- Durum 2: Kullanıcı Seçimi Gerekli (Kayıtlı kullanıcılar var ama seçili profil yok) ---
+    if (anyUserExists && !isUserSelected) {
+        
+        // **ÇÖZÜM:** Kullanıcı Auth ekranına gitmek istiyorsa ("Yeni Profil Oluştur" butonu), buna izin ver.
+        if (isAuthPath) {
+            return null; // Auth ekranına gitmesine izin ver.
+        }
+        
+        // Kullanıcı Home veya başka bir yere gitmek istiyorsa, Profile Selection ekranına zorla.
+        return isProfileSelectPath ? null : AppRoutes.profileSelection;
     }
     
-    // 3. Durum: Başarılı Doğrulama Yapılmış ve ana ekrana yönlendiriliyor.
-    // Eğer Home'da ise veya Home'a gitmek istiyorsa ve bir kullanıcı seçiliyse.
+    // --- Durum 3: Giriş Yapılmış (isUserSelected = true) ---
+    // Kullanıcı giriş yapmışsa ve Auth veya Profile Selection ekranına gitmeye çalışıyorsa, Home'a yönlendir.
     if (isUserSelected && (isAuthPath || isProfileSelectPath)) {
-        // Zaten giriş yapmışsa (seçim yapılmışsa), Home ekranına yönlendir
         return AppRoutes.home;
     }
     
-    // Home ekranına erişim ve kullanıcı seçiliyken: İzin ver.
+    // Diğer tüm durumlar (Home, Create, Detail, Profile, vb.): İzin ver.
     return null;
   },
 
