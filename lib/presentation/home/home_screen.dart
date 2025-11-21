@@ -29,6 +29,8 @@ class _HomeScreenState extends State<HomeScreen> {
   
   // Ebeveyn Modu durumu
   bool _isParentMode = false; 
+  
+  final GlobalKey _profileKey = GlobalKey(); 
 
   @override
   void initState() {
@@ -53,16 +55,12 @@ class _HomeScreenState extends State<HomeScreen> {
     await _loadUserData(forceReloadStories: false); 
     if (!mounted) return;
 
-    if (_currentUsername != LocalUserService.defaultUserId) {
-      // Sadece ilk yüklemede veya yönlendirmede doğrulama yap
-      await _verifyOnLoad(); 
-    } else {
-      if (mounted) {
-        setState(() { 
-          _isVerified = true; 
-          _isLoading = false; 
-        });
-      }
+    // _verifyOnLoad() çağrısını kaldırdık çünkü giriş ekranından zaten doğrulanmış geliyoruz.
+    if (mounted) {
+      setState(() { 
+        _isVerified = true; 
+        _isLoading = false; 
+      });
     }
     
     if (!mounted) return;
@@ -248,22 +246,62 @@ class _HomeScreenState extends State<HomeScreen> {
     final List<PopupMenuEntry<String>> menuItems = [
         ...switchableUsers.map((username) => PopupMenuItem<String>(
           value: username,
-          child: Text('Geçiş Yap: $username'),
+          child: Row(
+            children: [
+              CircleAvatar(
+                radius: 12,
+                backgroundColor: Colors.blueAccent.withOpacity(0.2),
+                child: Text(username[0].toUpperCase(), style: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: Colors.blueAccent)),
+              ),
+              const SizedBox(width: 12),
+              Expanded(child: Text('Geçiş Yap: $username', style: const TextStyle(fontWeight: FontWeight.w500))),
+            ],
+          ),
         )).toList(),
         
         if (switchableUsers.isNotEmpty) const PopupMenuDivider(),
         
         PopupMenuItem<String>(
           value: 'logout',
-          child: Text(isGuest ? 'Giriş Yap / Kayıt Ol' : 'Başka Biriyle Giriş Yap', 
-              style: TextStyle(color: isGuest ? Colors.green : Colors.red)),
+          child: Row(
+            children: [
+              Icon(isGuest ? Icons.login : Icons.logout, color: isGuest ? Colors.green : Colors.redAccent, size: 20),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Text(
+                  isGuest ? 'Giriş Yap / Kayıt Ol' : 'Başka Biriyle Giriş Yap', 
+                  style: TextStyle(color: isGuest ? Colors.green : Colors.redAccent, fontWeight: FontWeight.w600)
+                ),
+              ),
+            ],
+          ),
         ),
     ];
     
-    // PopupMenu'nun pozisyonlandırması için basit bir Rect kullanımı
+    // Widget'ın pozisyonunu hesapla
+    final RenderBox? renderBox = _profileKey.currentContext?.findRenderObject() as RenderBox?;
+    Offset offset = Offset.zero;
+    Size size = Size.zero;
+    
+    if (renderBox != null) {
+      offset = renderBox.localToGlobal(Offset.zero);
+      size = renderBox.size;
+    }
+    
+    // PopupMenu'nun pozisyonlandırması: Widget'ın hemen altında
     await showMenu(
       context: context,
-      position: RelativeRect.fromLTRB(1000, 100, 0, 0), 
+      elevation: 8,
+      shadowColor: Colors.black26,
+      color: Colors.white,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+      constraints: const BoxConstraints(minWidth: 200, maxWidth: 240),
+      position: RelativeRect.fromLTRB(
+        offset.dx, 
+        offset.dy + size.height + 5, // 5px boşluk
+        offset.dx + size.width, 
+        offset.dy + size.height + 100
+      ), 
       items: menuItems,
     ).then((value) async { 
       if (!mounted) return; 
@@ -308,7 +346,8 @@ class _HomeScreenState extends State<HomeScreen> {
 
     return Scaffold(
       appBar: AppBar(
-        title: InkWell(
+        title: GestureDetector(
+          key: _profileKey,
           onTap: () async {
             // Profil ekranına gitmek ve geri döndüğünde durumu yenilemek için
             await context.push(AppRoutes.profile); 

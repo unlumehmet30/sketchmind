@@ -39,4 +39,10 @@ class FirestoreStoryService {
 
     return snapshot.docs.map((doc) => Story.fromMap(doc.data(), doc.id)).toList();
   }
+
+  // Hikayeyi siler
+  Future<void> deleteStory(String storyId) async {
+    if (storyId.isEmpty) return;
+    await _firestore.collection(_collection).doc(storyId).delete();
+  }
 }

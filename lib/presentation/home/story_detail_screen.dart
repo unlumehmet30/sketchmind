@@ -3,9 +3,15 @@
 import 'package:flutter/material.dart';
 import 'package:cached_network_image/cached_network_image.dart'; 
 import '../../data/dummy/stories.dart';
-import '../../data/services/audio_service.dart'; // YENİ: Audio Servisi
+import '../../data/services/tts_services.dart'; // YENİ: TTS Servisi
+import '../../data/services/firestore_story_service.dart';
+import '../../data/services/local_user_service.dart';
+import '../../presentation/quiz/quiz_dialog.dart';
+import 'package:go_router/go_router.dart';
 
-final _audioService = AudioService(); // YENİ: Audio servisi başlatıldı
+final _ttsService = TTSService();
+final _firestoreService = FirestoreStoryService();
+final _localUserService = LocalUserService();
 
 class StoryDetailScreen extends StatefulWidget {
   final Story story;
@@ -18,82 +24,103 @@ class StoryDetailScreen extends StatefulWidget {
 }
 
 class _StoryDetailScreenState extends State<StoryDetailScreen> {
-  String? _localAudioPath;
-  bool _isDownloading = true;
-  
+  bool _isSpeaking = false;
+  bool _canDelete = false;
+
   @override
   void initState() {
     super.initState();
-    // Audio URL'si Mock olduğu için, bu kısım Mock URL'yi indirmeye çalışacaktır.
-    _cacheAudio(); 
+    _checkDeletePermission();
   }
 
   @override
   void dispose() {
-    // Ekran kapanınca oynatmayı durdur
-    _audioService.stopAudio();
-    // _audioService.dispose(); // Eğer AudioService tekil değilse çağrılır
+    _ttsService.stop();
     super.dispose();
   }
 
-  // Audio dosyasını önbelleğe alır
-  Future<void> _cacheAudio() async {
-    if (widget.story.audioUrl.isEmpty) {
-      setState(() => _isDownloading = false);
+  Future<void> _checkDeletePermission() async {
+    final currentUserId = await _localUserService.getSelectedUserId();
+    final isParent = await _localUserService.getIsParentMode();
+    
+    if (mounted) {
+      setState(() {
+        // Silme yetkisi: Hikaye sahibi veya Ebeveyn Modu açıksa
+        _canDelete = (currentUserId == widget.story.userId) || isParent;
+      });
+    }
+  }
+
+  void _toggleSpeaking() async {
+    if (_isSpeaking) {
+      await _ttsService.stop();
+      setState(() => _isSpeaking = false);
+    } else {
+      setState(() => _isSpeaking = true);
+      await _ttsService.speak(widget.story.text);
+      setState(() => _isSpeaking = false); // Okuma bitince (basitçe)
+    }
+  }
+
+  void _showQuiz() {
+    if (widget.story.questions.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Bu hikaye için test bulunamadı.')));
       return;
     }
-    try {
-      // Mock URL'den dosya indirmeyi simüle et
-      final path = await _audioService.downloadAndCacheAudio(
-        widget.story.audioUrl,
-        widget.story.id,
-      );
-      setState(() {
-        _localAudioPath = path;
-        _isDownloading = false;
-      });
-    } catch (e) {
-      print("Audio önbellekleme hatası: $e");
-      setState(() => _isDownloading = false);
-    }
+    
+    showDialog(
+      context: context,
+      builder: (context) => QuizDialog(questions: widget.story.questions),
+    );
   }
 
-  void _startSpeaking() {
-    if (_localAudioPath != null) {
-      _audioService.playAudio(_localAudioPath!);
-    } else {
-      // Offline değilse bile hata mesajı göster
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Ses dosyası henüz hazır değil.')),
-      );
-    }
-  }
+  void _deleteStory() async {
+    final confirm = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Hikayeyi Sil'),
+        content: const Text('Bu hikayeyi silmek istediğine emin misin?'),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(context, false), child: const Text('İptal')),
+          ElevatedButton(
+            onPressed: () => Navigator.pop(context, true),
+            style: ElevatedButton.styleFrom(backgroundColor: Colors.red, foregroundColor: Colors.white),
+            child: const Text('Sil'),
+          ),
+        ],
+      ),
+    );
 
-  void _stopSpeaking() {
-    _audioService.stopAudio();
+    if (confirm == true) {
+      await _firestoreService.deleteStory(widget.story.id);
+      if (mounted) {
+        context.pop(); // Detaydan çık
+        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Hikaye silindi.')));
+      }
+    }
   }
 
   @override
   Widget build(BuildContext context) {
-    // Oynatma butonu durumunu kontrol eder
-    final isPlayable = !_isDownloading && _localAudioPath != null;
-
+    // Oynatma butonu durumunu kontrol eder - ARTIK GEREK YOK
+    
     return Scaffold(
       appBar: AppBar(
         title: Text(widget.story.title),
         actions: [
-          // Dinleme Butonu (İndirme durumuna bağlı)
+          // Dinleme Butonu
           IconButton(
-            icon: _isDownloading
-                ? const SizedBox(width: 24, height: 24, child: CircularProgressIndicator(strokeWidth: 2))
-                : const Icon(Icons.volume_up),
-            onPressed: isPlayable ? _startSpeaking : null,
+            icon: Icon(_isSpeaking ? Icons.stop_circle : Icons.volume_up),
+            color: _isSpeaking ? Colors.red : null,
+            onPressed: _toggleSpeaking,
           ),
-          // Durdurma Butonu
-          IconButton(
-            icon: const Icon(Icons.stop),
-            onPressed: _stopSpeaking,
-          ),
+          // Silme Butonu
+          if (_canDelete)
+            IconButton(
+              icon: const Icon(Icons.delete),
+              color: Colors.red,
+              onPressed: _deleteStory,
+            ),
         ],
       ),
       body: SingleChildScrollView(
@@ -120,6 +147,23 @@ class _StoryDetailScreenState extends State<StoryDetailScreen> {
               widget.story.text,
               style: const TextStyle(fontSize: 18),
             ),
+            const SizedBox(height: 32),
+            
+            // Quiz Butonu
+            if (widget.story.questions.isNotEmpty)
+              Center(
+                child: ElevatedButton.icon(
+                  onPressed: _showQuiz,
+                  icon: const Icon(Icons.quiz),
+                  label: const Text("Eğlenceli Testi Çöz!"),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: Colors.orange,
+                    foregroundColor: Colors.white,
+                    padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 16),
+                    textStyle: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+                  ),
+                ),
+              ),
             const SizedBox(height: 32),
           ],
         ),
