@@ -14,9 +14,7 @@ import '../data/services/local_user_service.dart';
 
 final _firestoreService = FirestoreStoryService();
 
-LocalUserService get _localUserServiceInstance {
-  return LocalUserService(); 
-}
+final _localUserServiceInstance = LocalUserService();
 
 class AppRoutes {
   static const String home = '/'; 
@@ -58,12 +56,22 @@ final GoRouter router = GoRouter(
     }
     
     // --- Durum 3: Giriş Yapılmış (isUserSelected = true) ---
-    // Kullanıcı giriş yapmışsa ve Auth veya Profile Selection ekranına gitmeye çalışıyorsa, Home'a yönlendir.
-    if (isUserSelected && (isAuthPath || isProfileSelectPath)) {
+    // Kullanıcı giriş yapmışsa ve Profile Selection ekranına gitmeye çalışıyorsa, Home'a yönlendir.
+    // Auth ekranına (yeni profil oluşturma) izin veriyoruz.
+    if (isUserSelected && isProfileSelectPath) {
         return AppRoutes.home;
     }
     
-    // Diğer tüm durumlar (Home, Create, Detail, Profile, vb.): İzin ver.
+    // --- Durum 4: Hikaye Oluşturma Kısıtlaması ---
+    // Eğer kullanıcı /create sayfasına gitmeye çalışıyorsa ve Ebeveyn Modu kapalıysa, Home'a yönlendir.
+    if (state.uri.path == AppRoutes.create) {
+        final isParentMode = await _localUserServiceInstance.getIsParentMode();
+        if (!isParentMode) {
+            return AppRoutes.home;
+        }
+    }
+    
+    // Diğer tüm durumlar (Home, Detail, Profile, vb.): İzin ver.
     return null;
   },
 

@@ -23,8 +23,8 @@ class _ProfileScreenState extends State<ProfileScreen> {
   bool _isLoading = true;
 
   // Renk tanımlamaları (Kullanıcının isteği: Pastel Mor/Pembe karışımı ve Yeşil)
-  static const Color _childModeColor = Color(0xFFC3A1E6); // Pastel Mor
-  static const Color _parentModeColor = Color(0xFF4CAF50); // Yeşil
+  static const Color _childModeColor = Color.fromARGB(255, 161, 125, 196); // Pastel Mor
+  static const Color _parentModeColor = Color.fromARGB(255, 29, 221, 35); // Yeşil
 
   @override
   void initState() {
@@ -134,19 +134,91 @@ class _ProfileScreenState extends State<ProfileScreen> {
     return result ?? false;
   }
   
-  Future<void> _showAvatarSelectionMenu() async {
-    if (_currentUsername == 'Misafir') return; 
-    
-    // Rastgele avatar URL'si (örnek)
-    final selectedUrl = 'https://picsum.photos/id/${(DateTime.now().millisecond % 100).toString()}/100/100'; 
-    
-    await _localUserService.setSelectedUserAvatar(_currentUsername, selectedUrl);
-    if(mounted) {
-        setState(() {
-            _currentAvatarUrl = selectedUrl;
-        });
-        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Avatar güncellendi!')));
-    }
+  void _showAvatarSelectionMenu() {
+    if (_currentUsername == 'Misafir') return;
+
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(20))),
+      builder: (context) {
+        return DraggableScrollableSheet(
+          initialChildSize: 0.7,
+          minChildSize: 0.5,
+          maxChildSize: 0.9,
+          expand: true,
+          builder: (context, scrollController) {
+            return Material(
+              color: Colors.white,
+              borderRadius: const BorderRadius.vertical(top: Radius.circular(20)),
+              child: DefaultTabController(
+                length: predefinedAvatars.length,
+                child: Column(
+                  children: [
+                    const SizedBox(height: 10),
+                    Container(width: 40, height: 4, decoration: BoxDecoration(color: Colors.grey[300], borderRadius: BorderRadius.circular(2))),
+                    const SizedBox(height: 10),
+                    const Text("Yeni Avatarını Seç", style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+                    const SizedBox(height: 10),
+                    TabBar(
+                      isScrollable: true,
+                      labelColor: Colors.blue,
+                      unselectedLabelColor: Colors.grey,
+                      tabs: predefinedAvatars.map((cat) => Tab(text: cat.name)).toList(),
+                    ),
+                    Expanded(
+                      child: TabBarView(
+                        children: predefinedAvatars.map((category) {
+                          return GridView.builder(
+                            controller: scrollController,
+                            padding: const EdgeInsets.all(16),
+                            gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+                              crossAxisCount: 3,
+                              crossAxisSpacing: 16,
+                              mainAxisSpacing: 16,
+                            ),
+                            itemCount: category.imageUrls.length,
+                            itemBuilder: (context, index) {
+                              final url = category.imageUrls[index];
+                              return GestureDetector(
+                                onTap: () async {
+                                  await _localUserService.setSelectedUserAvatar(_currentUsername, url);
+                                  if (mounted) {
+                                    setState(() {
+                                      _currentAvatarUrl = url;
+                                    });
+                                    Navigator.pop(context);
+                                    ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Avatar güncellendi!')));
+                                  }
+                                },
+                                child: Container(
+                                  decoration: BoxDecoration(
+                                    shape: BoxShape.circle,
+                                    border: Border.all(color: Colors.grey.shade200),
+                                  ),
+                                  child: ClipOval(
+                                    child: CachedNetworkImage(
+                                      imageUrl: url,
+                                      fit: BoxFit.cover,
+                                      placeholder: (context, url) => const CircularProgressIndicator(),
+                                      errorWidget: (context, url, error) => const Icon(Icons.error),
+                                    ),
+                                  ),
+                                ),
+                              );
+                            },
+                          );
+                        }).toList(),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            );
+          },
+        );
+      },
+    );
   }
 
   @override

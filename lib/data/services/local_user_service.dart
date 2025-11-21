@@ -50,7 +50,7 @@ class LocalUserService {
   }
 
   // --- KULLANICI İŞLEMLERİ ---
-  Future<bool> registerUser(String username, String password) async {
+  Future<bool> registerUser(String username, String password, {String? avatarUrl}) async {
     final db = await _getUserDatabase();
     if (db.containsKey(username)) return false; 
     
@@ -64,6 +64,10 @@ class LocalUserService {
       await prefs.setStringList(_registeredUsersKey, registeredUsers);
     }
     
+    if (avatarUrl != null) {
+      await setSelectedUserAvatar(username, avatarUrl);
+    }
+    
     await setSelectedUserId(username);
     return true;
   }
@@ -71,7 +75,10 @@ class LocalUserService {
   Future<bool> loginUser(String username, String password) async {
     final db = await _getUserDatabase();
     final hashedPassword = _hashPassword(password);
-    if (db[username] == hashedPassword) return true;
+    if (db[username] == hashedPassword) {
+      await setSelectedUserId(username);
+      return true;
+    }
     return false;
   }
 

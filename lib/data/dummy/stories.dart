@@ -2,6 +2,34 @@
 
 import 'package:cloud_firestore/cloud_firestore.dart';
 
+class QuizQuestion {
+  final String question;
+  final List<String> options;
+  final int correctIndex;
+
+  QuizQuestion({
+    required this.question,
+    required this.options,
+    required this.correctIndex,
+  });
+
+  Map<String, dynamic> toMap() {
+    return {
+      'question': question,
+      'options': options,
+      'correctIndex': correctIndex,
+    };
+  }
+
+  factory QuizQuestion.fromMap(Map<String, dynamic> map) {
+    return QuizQuestion(
+      question: map['question'] as String,
+      options: List<String>.from(map['options']),
+      correctIndex: map['correctIndex'] as int,
+    );
+  }
+}
+
 class Story {
   final String id; 
   final String title;
@@ -11,6 +39,7 @@ class Story {
   final String userId; // HAFTA 6: Zorunlu Alan
   final DateTime createdAt; // Zorunlu Alan
   final bool isPublic; 
+  final List<QuizQuestion> questions; // YENİ: Quiz Soruları
 
   Story({
     required this.id,
@@ -21,6 +50,7 @@ class Story {
     this.userId = 'anonymous', // Varsayılan değer, ancak required olduğu için constructor'da sağlanmalı
     required this.createdAt,
     this.isPublic = true, 
+    this.questions = const [], // Varsayılan boş liste
   });
 
   // Firestore'a kaydetmek için
@@ -33,6 +63,7 @@ class Story {
       'userId': userId,
       'createdAt': Timestamp.fromDate(createdAt),
       'isPublic': isPublic,
+      'questions': questions.map((q) => q.toMap()).toList(),
     };
   }
 
@@ -47,6 +78,9 @@ class Story {
       userId: map['userId'] as String? ?? 'anonymous', 
       createdAt: (map['createdAt'] as Timestamp).toDate(),
       isPublic: map['isPublic'] as bool? ?? true,
+      questions: (map['questions'] as List<dynamic>?)
+          ?.map((q) => QuizQuestion.fromMap(q as Map<String, dynamic>))
+          .toList() ?? [],
     );
   }
 
@@ -60,6 +94,7 @@ class Story {
     String? userId,
     DateTime? createdAt,
     bool? isPublic,
+    List<QuizQuestion>? questions,
   }) {
     return Story(
       id: id ?? this.id,
@@ -70,6 +105,7 @@ class Story {
       userId: userId ?? this.userId,
       createdAt: createdAt ?? this.createdAt,
       isPublic: isPublic ?? this.isPublic,
+      questions: questions ?? this.questions,
     );
   }
 }

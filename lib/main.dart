@@ -16,7 +16,7 @@ Future<void> main() async {
   } catch (e) {
     print('❌ .env load failed: $e');
     // İsterseniz burada uygulamayı durdurabilirsiniz:
-    // return;
+    return;
   }
 
   // 2) Firebase'i başlat

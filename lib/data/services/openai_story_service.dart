@@ -40,12 +40,24 @@ class OpenAIStoryService implements IStoryService {
     var newStory = Story(
       id: "",
       title: "Yapay Zeka Macerası: ${prompt.substring(0, prompt.length > 15 ? 15 : prompt.length)}...",
-      text: "Simüle Edilmiş Hikaye Metni", // Placeholder
+      text: "Bir zamanlar, $prompt ile ilgili harika bir macera yaşandı. Kahramanımız çok cesurdu ve zorlukların üstesinden geldi. Sonunda herkes mutlu oldu.", // Placeholder
       imageUrl: "https://via.placeholder.com/400x300.png?text=Mock+Image",
       audioUrl: "",
       createdAt: DateTime.now(),
       userId: currentUserId,
       isPublic: true,
+      questions: [
+        QuizQuestion(
+          question: "Hikayenin kahramanı nasıldı?",
+          options: ["Korkak", "Cesur", "Üzgün", "Yorgun"],
+          correctIndex: 1,
+        ),
+        QuizQuestion(
+          question: "Hikaye nasıl bitti?",
+          options: ["Kötü", "Belirsiz", "Mutlu", "Sıkıcı"],
+          correctIndex: 2,
+        ),
+      ],
     );
 
     final firestoreId = await _firestoreService.saveStory(newStory);
