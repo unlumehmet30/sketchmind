@@ -8,6 +8,7 @@ import '../../router/app_router.dart';
 import '../../data/services/openai_story_service.dart'; 
 import '../../data/services/local_user_service.dart'; 
 import '../../data/dummy/avatars.dart'; 
+import '../games/game_hub_screen.dart'; // Import the GameHubScreen
 
 final _storyService = OpenAIStoryService();
 final _localUserService = LocalUserService(); 
@@ -20,14 +21,15 @@ class HomeScreen extends StatefulWidget {
 }
 
 class _HomeScreenState extends State<HomeScreen> {
+  int _selectedIndex = 0; // Tab index
+
+  // --- User Data State ---
   List<Story> _stories = []; 
   bool _isLoading = true;
   String _currentUsername = 'Misafir'; 
   String _lastLoadedUserId = ''; 
   String? _currentAvatarUrl; 
   bool _isVerified = false; 
-  
-  // Ebeveyn Modu durumu
   bool _isParentMode = false; 
   
   final GlobalKey _profileKey = GlobalKey(); 
@@ -40,7 +42,6 @@ class _HomeScreenState extends State<HomeScreen> {
     });
   }
 
-  // YENİLEME MANTIĞI: Profil ekranından geri dönüldüğünde durumu kontrol eder.
   @override
   void didChangeDependencies() {
     super.didChangeDependencies();
@@ -49,13 +50,12 @@ class _HomeScreenState extends State<HomeScreen> {
     }
   }
 
-  // --- GÜVENLİ VERİ YÜKLEME VE KONTROL METOTLARI ---
+  // --- DATA LOADING & VERIFICATION ---
 
   Future<void> _loadInitialDataAndVerify() async {
     await _loadUserData(forceReloadStories: false); 
     if (!mounted) return;
 
-    // _verifyOnLoad() çağrısını kaldırdık çünkü giriş ekranından zaten doğrulanmış geliyoruz.
     if (mounted) {
       setState(() { 
         _isVerified = true; 
@@ -73,20 +73,15 @@ class _HomeScreenState extends State<HomeScreen> {
   Future<void> _checkAndReloadUser() async {
     if (!mounted) return;
     
-    // Anlık mevcut durumları kontrol et
     final userId = await _localUserService.getSelectedUserId();
     final avatarUrl = await _localUserService.getSelectedUserAvatar(userId);
     final parentMode = await _localUserService.getIsParentMode(); 
     
     if (!mounted) return;
 
-    // Kullanıcı ID'si, Avatar URL'si veya Ebeveyn Modu değişmişse state'i güncelle
     if (userId != _lastLoadedUserId || avatarUrl != _currentAvatarUrl || parentMode != _isParentMode) {
-      
-      // Yalnızca kullanıcı değişmişse hikayeleri yeniden yükle
       await _loadUserData(forceReloadStories: userId != _lastLoadedUserId);
       
-      // Ebeveyn Modu durumunu set et (Buton bu değere bağımlıdır)
       if(mounted) {
         setState(() { 
           _isParentMode = parentMode; 
@@ -104,7 +99,7 @@ class _HomeScreenState extends State<HomeScreen> {
     final fetchedAvatarUrl = await _localUserService.getSelectedUserAvatar(userId); 
     if (!mounted) return;
     
-    final parentMode = await _localUserService.getIsParentMode(); // Ebeveyn modunu da yükle
+    final parentMode = await _localUserService.getIsParentMode(); 
     if (!mounted) return;
 
     if (!mounted) return;
@@ -113,7 +108,7 @@ class _HomeScreenState extends State<HomeScreen> {
       _currentUsername = userId == LocalUserService.defaultUserId ? 'Misafir' : userId;
       _lastLoadedUserId = userId;
       _currentAvatarUrl = fetchedAvatarUrl ?? defaultAvatarUrl; 
-      _isParentMode = parentMode; // Durumu kaydet
+      _isParentMode = parentMode; 
     });
     
     if (forceReloadStories) {
@@ -163,20 +158,8 @@ class _HomeScreenState extends State<HomeScreen> {
     }
   }
 
-  Future<void> _verifyOnLoad() async {
-    if (mounted) setState(() { _isLoading = true; });
+  // --- DIALOGS ---
 
-    final bool success = await _showPasswordVerificationDialog(_currentUsername, isStrict: true);
-    if (!mounted) return;
-    
-    if (success) {
-        setState(() { _isVerified = true; });
-    } else {
-        _logoutAndRedirect(); 
-    }
-  }
-
-  // --- ŞİFRE DOĞRULAMA DİYALOĞU ---
   Future<bool> _showPasswordVerificationDialog(String targetUsername, {bool isStrict = false}) async {
     final TextEditingController passwordController = TextEditingController();
     
@@ -278,7 +261,6 @@ class _HomeScreenState extends State<HomeScreen> {
         ),
     ];
     
-    // Widget'ın pozisyonunu hesapla
     final RenderBox? renderBox = _profileKey.currentContext?.findRenderObject() as RenderBox?;
     Offset offset = Offset.zero;
     Size size = Size.zero;
@@ -288,7 +270,6 @@ class _HomeScreenState extends State<HomeScreen> {
       size = renderBox.size;
     }
     
-    // PopupMenu'nun pozisyonlandırması: Widget'ın hemen altında
     await showMenu(
       context: context,
       elevation: 8,
@@ -298,7 +279,7 @@ class _HomeScreenState extends State<HomeScreen> {
       constraints: const BoxConstraints(minWidth: 200, maxWidth: 240),
       position: RelativeRect.fromLTRB(
         offset.dx, 
-        offset.dy + size.height + 5, // 5px boşluk
+        offset.dy + size.height + 5, 
         offset.dx + size.width, 
         offset.dy + size.height + 100
       ), 
@@ -319,7 +300,45 @@ class _HomeScreenState extends State<HomeScreen> {
     });
   }
 
-  // --- BUILD ---
+  // --- WIDGETS ---
+
+  Widget _buildStoriesTab() {
+     if (_stories.isEmpty) {
+       return Center(
+         child: Text(
+           _currentUsername == 'Misafir' 
+           ? "Giriş yapın ve kendi hikayelerinizi oluşturun!"
+           : (_isParentMode 
+                ? "Henüz hikaye yok. (+) butonuna basarak oluşturun." 
+                : "Henüz hikaye yok. Hikaye oluşturmak için Ebeveyn Modunu açın."),
+           textAlign: TextAlign.center,
+         )
+       );
+     }
+     
+     return ListView.builder(
+       itemCount: _stories.length,
+       itemBuilder: (context, index) {
+         final story = _stories[index];
+         return Card(
+           margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+           child: ListTile(
+             leading: CachedNetworkImage(
+               imageUrl: story.imageUrl,
+               width: 50, height: 50, fit: BoxFit.cover,
+               placeholder: (context, url) => Container(width: 50, height: 50, color: Colors.grey[200]),
+               errorWidget: (context, url, error) => Container(width: 50, height: 50, color: Colors.grey[300], child: const Icon(Icons.image_not_supported, size: 30)),
+             ),
+             title: Text(story.title, style: const TextStyle(fontWeight: FontWeight.bold)),
+             subtitle: Text(story.text.length > 50 ? '${story.text.substring(0, 50)}...' : story.text),
+             trailing: const Icon(Icons.arrow_forward_ios, size: 16),
+             onTap: () { context.push(AppRoutes.storyDetail.replaceFirst(':id', story.id)); },
+           ),
+         );
+       },
+     );
+  }
+
   @override
   Widget build(BuildContext context) {
     if (_isLoading || !_isVerified) {
@@ -344,12 +363,12 @@ class _HomeScreenState extends State<HomeScreen> {
             : null,
     );
 
+    // Main Scaffold with BottomNavigationBar
     return Scaffold(
       appBar: AppBar(
         title: GestureDetector(
           key: _profileKey,
           onTap: () async {
-            // Profil ekranına gitmek ve geri döndüğünde durumu yenilemek için
             await context.push(AppRoutes.profile); 
           },
           onLongPress: () => _showProfileOptions(context), 
@@ -364,59 +383,53 @@ class _HomeScreenState extends State<HomeScreen> {
         ), 
         automaticallyImplyLeading: false, 
         actions: [
-          // KISITLAMA KONTROLÜ: Yeni hikaye oluşturma butonu sadece Ebeveyn Modu'nda (true) görünür.
-          if (_isParentMode)
+          // Only show "Add Story" button if in Stories tab and Parent Mode is on
+          if (_selectedIndex == 0 && _isParentMode)
             IconButton(
               icon: const Icon(Icons.add_box_outlined),
               onPressed: () => context.push(AppRoutes.create),
             ),
           
-          IconButton( 
-            icon: const Icon(Icons.refresh),
-            onPressed: () {
-              setState(() {
-                _stories = [];
-                _isLoading = true;
-              });
-              _fetchStories(); 
-            },
-          ),
+          // Only show refresh button in Stories tab
+          if (_selectedIndex == 0)
+            IconButton( 
+              icon: const Icon(Icons.refresh),
+              onPressed: () {
+                setState(() {
+                  _stories = [];
+                  _isLoading = true;
+                });
+                _fetchStories(); 
+              },
+            ),
           const SizedBox(width: 8), 
         ]
       ),
-      body: _stories.isEmpty 
-             ? Center(
-                 child: Text(
-                   _currentUsername == 'Misafir' 
-                   ? "Giriş yapın ve kendi hikayelerinizi oluşturun!"
-                   // KISITLAMA METNİ
-                   : (_isParentMode 
-                        ? "Henüz hikaye yok. (+) butonuna basarak oluşturun." 
-                        : "Henüz hikaye yok. Hikaye oluşturmak için Ebeveyn Modunu açın."),
-                   textAlign: TextAlign.center,
-                 )
-               )
-             : ListView.builder(
-                 itemCount: _stories.length,
-                 itemBuilder: (context, index) {
-                   final story = _stories[index];
-                   return Card(
-                     margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-                     child: ListTile(
-                       leading: CachedNetworkImage(
-                         imageUrl: story.imageUrl,
-                         width: 50, height: 50, fit: BoxFit.cover,
-                         placeholder: (context, url) => Container(width: 50, height: 50, color: Colors.grey[200]),
-                         errorWidget: (context, url, error) => Container(width: 50, height: 50, color: Colors.grey[300], child: const Icon(Icons.image_not_supported, size: 30)),
-                       ),
-                       title: Text(story.title, style: const TextStyle(fontWeight: FontWeight.bold)),
-                       subtitle: Text(story.text.length > 50 ? '${story.text.substring(0, 50)}...' : story.text),
-                       trailing: const Icon(Icons.arrow_forward_ios, size: 16),
-                       onTap: () { context.push(AppRoutes.storyDetail.replaceFirst(':id', story.id)); },
-                     ),
-                   );
-                 },
-               )
+      body: IndexedStack(
+        index: _selectedIndex,
+        children: [
+          _buildStoriesTab(),
+          const GameHubScreen(), // The new Game Hub Tab
+        ],
+      ),
+      bottomNavigationBar: BottomNavigationBar(
+        currentIndex: _selectedIndex,
+        onTap: (index) {
+          setState(() {
+            _selectedIndex = index;
+          });
+        },
+        items: const [
+          BottomNavigationBarItem(
+            icon: Icon(Icons.book),
+            label: 'Hikayeler',
+          ),
+          BottomNavigationBarItem(
+            icon: Icon(Icons.games),
+            label: 'Oyun',
+          ),
+        ],
+      ),
     );
   }
 }
