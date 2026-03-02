@@ -9,7 +9,6 @@ import 'package:google_fonts/google_fonts.dart';
 import 'data/services/auth_service.dart';
 import 'data/services/family_settings_service.dart';
 import 'data/services/screen_time_service.dart';
-import 'firebase_options.dart';
 import 'presentation/theme/app_theme_controller.dart';
 import 'presentation/theme/playful_theme.dart';
 import 'router/app_router.dart';
@@ -27,9 +26,7 @@ Future<AppBootstrapStatus> _bootstrapApp() async {
   String? startupError;
 
   try {
-    await Firebase.initializeApp(
-      options: DefaultFirebaseOptions.currentPlatform,
-    );
+    await Firebase.initializeApp();
     FirebaseFirestore.instance.settings = const Settings(
       persistenceEnabled: true,
     );
