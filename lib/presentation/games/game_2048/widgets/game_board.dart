@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+
 import '../logic/game_logic.dart';
 import 'tile_widget.dart';
 
@@ -12,16 +13,20 @@ class GameBoard extends StatelessWidget {
   Widget build(BuildContext context) {
     return GestureDetector(
       onVerticalDragEnd: (details) {
-        if (details.primaryVelocity! < 0) {
+        final velocity = details.primaryVelocity;
+        if (velocity == null) return;
+        if (velocity < 0) {
           onMove('up');
-        } else if (details.primaryVelocity! > 0) {
+        } else if (velocity > 0) {
           onMove('down');
         }
       },
       onHorizontalDragEnd: (details) {
-        if (details.primaryVelocity! < 0) {
+        final velocity = details.primaryVelocity;
+        if (velocity == null) return;
+        if (velocity < 0) {
           onMove('left');
-        } else if (details.primaryVelocity! > 0) {
+        } else if (velocity > 0) {
           onMove('right');
         }
       },
@@ -30,14 +35,22 @@ class GameBoard extends StatelessWidget {
         child: Container(
           padding: const EdgeInsets.all(16.0),
           decoration: BoxDecoration(
-            color: const Color(0xFFBBADA0),
-            borderRadius: BorderRadius.circular(16.0),
+            gradient: const LinearGradient(
+              colors: [Color(0xFFE6DCFF), Color(0xFFF9E6F6)],
+              begin: Alignment.topLeft,
+              end: Alignment.bottomRight,
+            ),
+            borderRadius: BorderRadius.circular(18.0),
+            border: Border.all(
+              color: const Color(0xFF9585F9).withValues(alpha: 0.32),
+            ),
           ),
           child: LayoutBuilder(
             builder: (context, constraints) {
               final gridSize = gameLogic.gridSize;
-              final tileSize = (constraints.maxWidth - (gridSize - 1) * 10) / gridSize;
-              
+              final tileSize =
+                  (constraints.maxWidth - (gridSize - 1) * 10) / gridSize;
+
               return GridView.builder(
                 physics: const NeverScrollableScrollPhysics(),
                 gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
@@ -49,7 +62,8 @@ class GameBoard extends StatelessWidget {
                 itemBuilder: (context, index) {
                   int r = index ~/ gridSize;
                   int c = index % gridSize;
-                  return TileWidget(value: gameLogic.grid[r][c], size: tileSize);
+                  return TileWidget(
+                      value: gameLogic.grid[r][c], size: tileSize);
                 },
               );
             },

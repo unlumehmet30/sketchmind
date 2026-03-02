@@ -1,0 +1,13 @@
+{
+  "version": "0.2.0",
+  "configurations": [
+    {
+      "name": "Flutter (OPENAI_API_KEY env)",
+      "request": "launch",
+      "type": "dart",
+      "toolArgs": [
+        "--dart-define=OPENAI_API_KEY=${env:OPENAI_API_KEY}"
+      ]
+    }
+  ]
+}

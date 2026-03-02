@@ -1,81 +1,155 @@
 // lib/data/services/openai_story_service.dart
 
 import 'package:flutter/foundation.dart';
-import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:dart_openai/dart_openai.dart';
+
 import '../i_story_service.dart';
 import '../dummy/stories.dart';
-import 'firestore_story_service.dart';
 import 'auth_service.dart';
+import 'firestore_story_service.dart';
 import 'local_user_service.dart';
-import 'storage_service.dart';
-
-final _firestoreService = FirestoreStoryService();
-final _authService = AuthService();
-final _storageService = StorageService();
+import 'story_generation_models.dart';
+import 'story_generation_pipeline.dart';
 
 class OpenAIStoryService implements IStoryService {
-  OpenAIStoryService() {
-    try {
-      final apiKey = dotenv.env['OPENAI_API_KEY'];
-      if (apiKey != null && apiKey.isNotEmpty) {
-        OpenAI.apiKey = apiKey;
-        if (kDebugMode) print('✅ OpenAI API key yüklendi.');
-      } else {
-        if (kDebugMode) print('⚠️ OpenAI API key bulunamadı, AI çağrıları çalışmayacak.');
-      }
-    } catch (e, st) {
-      // dotenv yüklenmemiş olsa da uygulama çökmesin
+  OpenAIStoryService._internal({
+    StoryGenerationPipeline? pipeline,
+  }) : _pipeline = pipeline ??
+            StoryGenerationPipeline(firestore: FirestoreStoryService()) {
+    _configureOpenAi();
+  }
+
+  static final OpenAIStoryService _instance = OpenAIStoryService._internal();
+  static bool _openAiConfigured = false;
+  static const String _openAiApiKey = String.fromEnvironment('OPENAI_API_KEY');
+
+  factory OpenAIStoryService({
+    StoryGenerationPipeline? pipeline,
+  }) {
+    if (pipeline == null) {
+      return _instance;
+    }
+    return OpenAIStoryService._internal(pipeline: pipeline);
+  }
+
+  final StoryGenerationPipeline _pipeline;
+  final FirestoreStoryService _firestoreService = FirestoreStoryService();
+  final LocalUserService _localUserService = LocalUserService();
+  final AuthService _authService = AuthService();
+
+  void _configureOpenAi() {
+    if (_openAiConfigured) return;
+    final key = _openAiApiKey.trim();
+    if (key.isEmpty) {
       if (kDebugMode) {
-        print('⚠️ dotenv erişimi sırasında hata: $e\n$st');
+        debugPrint(
+          'OpenAI API key is missing. Provide it via --dart-define=OPENAI_API_KEY=...',
+        );
       }
+      return;
+    }
+    OpenAI.apiKey = key;
+    _openAiConfigured = true;
+    if (kDebugMode) {
+      debugPrint('OpenAI client configured via dart-define.');
     }
   }
 
   @override
-  Future<Story> createStory(String prompt) async {
-    final currentUserId = await _authService.getCurrentUserId();
+  Future<Story> createStory(
+    String prompt, {
+    StoryAgeProfile ageProfile = StoryAgeProfile.unknown,
+    StoryStyle style = StoryStyle.adventure,
+    StoryColorPalette colorPalette = StoryColorPalette.auto,
+    bool sceneMode = false,
+    int sceneCount = 3,
+    StoryCharacterProfile? characterProfile,
+    bool isPublic = true,
+    bool dataMinimizationMode = true,
+  }) async {
+    final ownerUid = await _authService.getCurrentUserId();
+    final currentLocalUserId = await _localUserService.getSelectedUserId();
 
-    // TODO: Gerçek GPT, DALL·E, TTS çağrıları burada yapılacak
-    var newStory = Story(
-      id: "",
-      title: "Yapay Zeka Macerası: ${prompt.substring(0, prompt.length > 15 ? 15 : prompt.length)}...",
-      text: "Bir zamanlar, $prompt ile ilgili harika bir macera yaşandı. Kahramanımız çok cesurdu ve zorlukların üstesinden geldi. Sonunda herkes mutlu oldu.", // Placeholder
-      imageUrl: "https://via.placeholder.com/400x300.png?text=Mock+Image",
-      audioUrl: "",
-      createdAt: DateTime.now(),
-      userId: currentUserId,
-      isPublic: true,
-      questions: [
-        QuizQuestion(
-          question: "Hikayenin kahramanı nasıldı?",
-          options: ["Korkak", "Cesur", "Üzgün", "Yorgun"],
-          correctIndex: 1,
-        ),
-        QuizQuestion(
-          question: "Hikaye nasıl bitti?",
-          options: ["Kötü", "Belirsiz", "Mutlu", "Sıkıcı"],
-          correctIndex: 2,
-        ),
-      ],
+    final request = StoryGenerationRequest(
+      ownerUid: ownerUid,
+      userId: currentLocalUserId,
+      prompt: prompt,
+      ageProfile: ageProfile,
+      style: style,
+      colorPalette: colorPalette,
+      sceneMode: sceneMode,
+      sceneCount: sceneCount,
+      isPublic: isPublic,
+      dataMinimizationMode: dataMinimizationMode,
+      characterProfile: characterProfile,
     );
 
-    final firestoreId = await _firestoreService.saveStory(newStory);
-    return newStory.copyWith(id: firestoreId);
+    return _pipeline.generateAndPublish(request);
   }
 
-  Future<List<Story>> getStoriesForUser(String userId) async {
-    try {
-      final allStories = await _firestoreService.getPublicStories();
+  @override
+  Future<Story> continueStory({
+    required Story parentStory,
+    String continuationPrompt = 'Devamini yaz',
+    StoryAgeProfile? ageProfile,
+    StoryStyle? style,
+    StoryColorPalette? colorPalette,
+    bool sceneMode = true,
+    int sceneCount = 3,
+    bool dataMinimizationMode = true,
+  }) async {
+    final ownerUid = await _authService.getCurrentUserId();
+    final currentLocalUserId = await _localUserService.getSelectedUserId();
 
+    final request = StoryGenerationRequest(
+      ownerUid: ownerUid,
+      userId: currentLocalUserId,
+      prompt: continuationPrompt,
+      ageProfile: ageProfile ?? parentStory.ageProfile,
+      style: style ?? parentStory.style,
+      colorPalette: colorPalette ?? parentStory.colorPalette,
+      sceneMode: sceneMode,
+      sceneCount: sceneCount,
+      isPublic: parentStory.isPublic,
+      dataMinimizationMode: dataMinimizationMode,
+      characterProfile: parentStory.characterProfile,
+      parentStory: parentStory,
+    );
+
+    return _pipeline.generateAndPublish(request);
+  }
+
+  @override
+  Future<List<Story>> getStoriesForUser(String userId) async {
+    final ownerUid = await _authService.getCurrentUserId();
+
+    try {
       if (userId == LocalUserService.defaultUserId) {
-        return allStories;
+        return await _firestoreService.getPublicStories();
       }
 
-      return allStories.where((story) => story.userId == userId).toList();
+      return await _firestoreService.getStoriesForUser(
+        ownerUid: ownerUid,
+        userId: userId,
+      );
     } catch (e, st) {
-      if (kDebugMode) print('Hikayeler çekilemedi: $e\n$st');
-      return <Story>[]; // hata olsa bile boş liste döner, UI çökmez
+      if (kDebugMode) {
+        debugPrint('User-scoped fetch failed, falling back: $e\n$st');
+      }
+
+      try {
+        if (userId == LocalUserService.defaultUserId) {
+          return await _firestoreService.getPublicStories();
+        }
+        return <Story>[];
+      } catch (fallbackError, fallbackStack) {
+        if (kDebugMode) {
+          debugPrint(
+            'Fallback story fetch failed: $fallbackError\n$fallbackStack',
+          );
+        }
+        return <Story>[];
+      }
     }
   }
 
@@ -84,13 +158,13 @@ class OpenAIStoryService implements IStoryService {
     try {
       return await _firestoreService.getPublicStories();
     } catch (e, st) {
-      if (kDebugMode) print('Public hikayeler çekilemedi: $e\n$st');
+      if (kDebugMode) debugPrint('Failed to fetch public stories: $e\n$st');
       return <Story>[];
     }
   }
 
   @override
   Future<void> saveStory(Story story) async {
-    throw UnimplementedError('Kayıt işlemi createStory içinde yapılıyor.');
+    throw UnimplementedError('Kayit islemi createStory icinde yapiliyor.');
   }
 }

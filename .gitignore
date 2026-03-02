@@ -17,7 +17,6 @@ app.*.map.json
 *.iml
 .gradle/
 local.properties
-.idea/
 android/.gradle/
 android/app/release/
 android/key.properties
@@ -35,10 +34,14 @@ macos/Flutter/Flutter-Release.xcconfig
 macos/Flutter/Generated.xcconfig
 
 # VS Code
-.vscode/
+.vscode/*
+!.vscode/launch.json
 
 # IntelliJ
-.idea/
+.idea/*
+!.idea/runConfigurations/
+.idea/runConfigurations/*
+!.idea/runConfigurations/main_dart.xml
 
 # Xcode
 *.xcworkspace
@@ -55,8 +58,5 @@ DerivedData/
 .DS_Store
 *.log
 # Firebase configuration
-lib/firebase_options.dart
 .env
 .env.*
-
-

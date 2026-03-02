@@ -1,0 +1,71 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function isOwner(data) {
+      return isSignedIn() && data.ownerUid == request.auth.uid;
+    }
+
+    function isSafeString(value, minLen, maxLen) {
+      return value is string
+        && value.size() >= minLen
+        && value.size() <= maxLen;
+    }
+
+    function hasStoryCoreFields(data) {
+      return data.keys().hasAll([
+          'ownerUid',
+          'userId',
+          'title',
+          'text',
+          'isPublic',
+          'createdAt'
+        ]);
+    }
+
+    function isValidStoryPayload(data) {
+      return hasStoryCoreFields(data)
+        && data.ownerUid == request.auth.uid
+        && isSafeString(data.userId, 1, 64)
+        && isSafeString(data.title, 1, 120)
+        && isSafeString(data.text, 1, 8000)
+        && data.isPublic is bool
+        && data.createdAt is timestamp;
+    }
+
+    match /stories/{storyId} {
+      allow read: if isSignedIn()
+        && (resource.data.isPublic == true || isOwner(resource.data));
+
+      allow create: if isSignedIn() && isValidStoryPayload(request.resource.data);
+
+      allow update: if isOwner(resource.data)
+        && request.resource.data.ownerUid == resource.data.ownerUid
+        && request.resource.data.userId == resource.data.userId
+        && isSafeString(request.resource.data.title, 1, 120)
+        && isSafeString(request.resource.data.text, 1, 8000)
+        && request.resource.data.isPublic is bool;
+
+      allow delete: if isOwner(resource.data);
+    }
+
+    match /family_settings/{docId} {
+      allow read: if isSignedIn() && resource.data.ownerUid == request.auth.uid;
+
+      allow create: if isSignedIn()
+        && request.resource.data.ownerUid == request.auth.uid
+        && request.resource.data.userId is string;
+
+      allow update: if isSignedIn()
+        && resource.data.ownerUid == request.auth.uid
+        && request.resource.data.ownerUid == resource.data.ownerUid
+        && request.resource.data.userId == resource.data.userId;
+
+      allow delete: if isSignedIn() && resource.data.ownerUid == request.auth.uid;
+    }
+  }
+}

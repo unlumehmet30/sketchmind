@@ -3,6 +3,7 @@ import 'dart:math';
 class GameLogic {
   final int gridSize;
   List<List<int>> _grid;
+  final Random _random = Random();
   int _score = 0;
   bool _isGameOver = false;
 
@@ -33,9 +34,8 @@ class GameLogic {
     }
 
     if (emptyCells.isNotEmpty) {
-      final random = Random();
-      final point = emptyCells[random.nextInt(emptyCells.length)];
-      _grid[point.x][point.y] = random.nextDouble() < 0.9 ? 2 : 4;
+      final point = emptyCells[_random.nextInt(emptyCells.length)];
+      _grid[point.x][point.y] = _random.nextDouble() < 0.9 ? 2 : 4;
     }
   }
 
@@ -71,10 +71,12 @@ class GameLogic {
     bool moved = false;
     for (int c = 0; c < gridSize; c++) {
       List<int> col = [];
-      for (int r = 0; r < gridSize; r++) col.add(_grid[r][c]);
-      
+      for (int r = 0; r < gridSize; r++) {
+        col.add(_grid[r][c]);
+      }
+
       List<int> newCol = _mergeRow(col);
-      
+
       for (int r = 0; r < gridSize; r++) {
         if (_grid[r][c] != newCol[r]) {
           _grid[r][c] = newCol[r];
@@ -90,8 +92,10 @@ class GameLogic {
     bool moved = false;
     for (int c = 0; c < gridSize; c++) {
       List<int> col = [];
-      for (int r = 0; r < gridSize; r++) col.add(_grid[r][c]);
-      
+      for (int r = 0; r < gridSize; r++) {
+        col.add(_grid[r][c]);
+      }
+
       List<int> reversedCol = List.from(col.reversed);
       List<int> newCol = _mergeRow(reversedCol);
       newCol = List.from(newCol.reversed);
@@ -110,7 +114,7 @@ class GameLogic {
   List<int> _mergeRow(List<int> row) {
     List<int> nonZero = row.where((val) => val != 0).toList();
     List<int> newRow = [];
-    
+
     int i = 0;
     while (i < nonZero.length) {
       if (i + 1 < nonZero.length && nonZero[i] == nonZero[i + 1]) {
@@ -123,7 +127,7 @@ class GameLogic {
         i++;
       }
     }
-    
+
     while (newRow.length < gridSize) {
       newRow.add(0);
     }

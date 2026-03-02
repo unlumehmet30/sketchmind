@@ -3,22 +3,17 @@
 import 'package:connectivity_plus/connectivity_plus.dart';
 
 class ConnectivityService {
+  ConnectivityService._internal();
+  static final ConnectivityService _instance = ConnectivityService._internal();
+  factory ConnectivityService() => _instance;
+
   final Connectivity _connectivity = Connectivity();
 
-  // YENİ: Stream dönüş tipini List<ConnectivityResult> olarak güncellendi.
-  Stream<List<ConnectivityResult>> get connectivityStream => _connectivity.onConnectivityChanged;
+  Stream<List<ConnectivityResult>> get connectivityStream =>
+      _connectivity.onConnectivityChanged;
 
-  // Mevcut bağlantı durumunu kontrol eden yardımcı metot
   Future<bool> isConnected() async {
-    // YENİ: checkConnectivity artık Future<List<ConnectivityResult>> döndürüyor.
-    final connectivityResult = await _connectivity.checkConnectivity();
-    
-    // Wi-Fi veya Mobil veri içeren herhangi bir sonuç varsa true döndür
-    if (connectivityResult.contains(ConnectivityResult.mobile) ||
-        connectivityResult.contains(ConnectivityResult.wifi)) {
-      return true;
-    }
-    // Bağlantı yoksa veya bilinmiyorsa false döndür
-    return false;
+    final results = await _connectivity.checkConnectivity();
+    return results.any((result) => result != ConnectivityResult.none);
   }
 }

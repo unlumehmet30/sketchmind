@@ -42,4 +42,5 @@ final List<AvatarCategory> predefinedAvatars = [
 ];
 
 // Varsayılan avatar URL'i
-const String defaultAvatarUrl = 'https://placehold.co/100x100/808080/white/png?text=USER';
+const String defaultAvatarUrl =
+    'https://placehold.co/100x100/808080/white/png?text=USER';

@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import 'package:lottie/lottie.dart';
 import '../../data/dummy/stories.dart';
 
 class QuizDialog extends StatefulWidget {
@@ -50,7 +49,8 @@ class _QuizDialogState extends State<QuizDialog> {
       children: [
         Text(
           "Soru ${_currentIndex + 1}/${widget.questions.length}",
-          style: const TextStyle(color: Colors.grey, fontWeight: FontWeight.bold),
+          style:
+              const TextStyle(color: Colors.grey, fontWeight: FontWeight.bold),
         ),
         const SizedBox(height: 10),
         Text(
@@ -69,9 +69,11 @@ class _QuizDialogState extends State<QuizDialog> {
                 backgroundColor: Colors.blue.shade50,
                 foregroundColor: Colors.blue.shade900,
                 elevation: 0,
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(12)),
               ),
-              child: Text(question.options[index], style: const TextStyle(fontSize: 16)),
+              child: Text(question.options[index],
+                  style: const TextStyle(fontSize: 16)),
             ),
           );
         }),
@@ -84,11 +86,10 @@ class _QuizDialogState extends State<QuizDialog> {
     return Column(
       mainAxisSize: MainAxisSize.min,
       children: [
-        Lottie.asset(
-          isSuccess ? 'assets/lottie/success_star.json' : 'assets/lottie/error_sad.json',
-          width: 150,
-          height: 150,
-          repeat: false,
+        Icon(
+          isSuccess ? Icons.emoji_events : Icons.auto_awesome_mosaic,
+          size: 110,
+          color: isSuccess ? Colors.amber : Colors.orange,
         ),
         const SizedBox(height: 10),
         Text(
@@ -107,7 +108,8 @@ class _QuizDialogState extends State<QuizDialog> {
             minimumSize: const Size(double.infinity, 50),
             backgroundColor: Colors.green,
             foregroundColor: Colors.white,
-            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+            shape:
+                RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
           ),
           child: const Text("Tamamla"),
         ),
